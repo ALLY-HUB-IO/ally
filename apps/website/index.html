@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ALLY – Incentivize. Engage. Reward.</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Favicon -->
+  <link rel="apple-touch-icon" sizes="180x180" href="./public/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="./public/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="./public/favicon-16x16.png">
+  <link rel="manifest" href="./public/site.webmanifest">
+  <link rel="shortcut icon" href="./public/favicon.ico">
+  <!-- Primary SEO & Social -->
+  <meta name="description"
+        content="ALLY turns your community into your marketers, rewarding real engagement with your tokens—no agencies, no middlemen.">
+  <link rel="canonical" href="https://ally-hub.io/">
+  <!-- Simple, component‑friendly CSS -->
+  <style>
+    :root {
+      --purple: #6f44ff;
+      --pink:   #ff5ba8;
+      --bg:     #f9f7ff;
+      --text:   #2d2545;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;font-family:Inter,Helvetica,Arial,sans-serif}
+    body{background:var(--bg);color:var(--text);line-height:1.55;-webkit-font-smoothing:antialiased}
+    header{display:flex;flex-direction:column;align-items:center;padding:6rem 1rem 4rem;text-align:center}
+    .logo-stack{font-size:4rem;font-weight:800;display:flex;align-items:center;gap:.25rem}
+    .logo-stack img{height:4rem;width:4rem}
+    h1.tagline{font-size:1.5rem;font-weight:500;margin-top:1rem;max-width:34rem}
+    .cta-btn{margin-top:2rem;background:linear-gradient(90deg,var(--pink),var(--purple));color:#fff;
+             padding:.9rem 2rem;border-radius:8px;border:none;font-size:1rem;font-weight:600;cursor:pointer}
+    /* Sections */
+    section{padding:4rem 1rem;max-width:960px;margin:0 auto}
+    section h2{font-size:2rem;margin-bottom:1.25rem;text-align:center}
+    .features,.built-on{display:grid;gap:1.5rem}
+    .features{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+    .card{background:#ffffff;border-radius:12px;padding:1.5rem;box-shadow:0 8px 16px rgba(0,0,0,.05)}
+    .card h3{font-size:1.15rem;margin-bottom:.5rem;color:var(--purple)}
+    .built-on{grid-template-columns:repeat(auto-fit,minmax(200px,1fr));place-items:center;text-align:center}
+    .built-on img{height:48px;margin-bottom:.5rem}
+    footer{padding:3rem 1rem;text-align:center;font-size:.9rem;color:#666}
+    footer a{color:var(--purple);text-decoration:none;font-weight:600}
+    /* Small viewport tweak */
+    @media(min-width:680px){
+      header{padding:8rem 1rem 5rem}
+      h1.tagline{font-size:1.75rem}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ========== HERO / HEADER ========== -->
+<header>
+  <div class="logo-stack">
+      <img src="./public/ALLY-Logo.png" alt="ALLY logo" loading="lazy" style="width: 100px; height: 100px;">
+      <span>LLY</span>
+  </div>
+  <h1 class="tagline">
+     Turns your community into your marketers, rewarding real engagement with your tokens—
+     no agencies, no middlemen.
+  </h1>
+  <button class="cta-btn"
+          onclick="window.open('https://www.linkedin.com/in/simon-piazolo/', '_blank')">
+     Reach Out to Us
+  </button>
+</header>
+
+<!-- ========== FEATURES ========== -->
+<section>
+  <h2>Why ALLY?</h2>
+  <div class="features">
+      <div class="card">
+          <h3>Modular Agent Architecture</h3>
+          <p>Create a bespoke engagement agent that fits your brand and campaign objectives—no code required.</p>
+      </div>
+      <div class="card">
+          <h3>Multi‑Platform Reach</h3>
+          <p>Reward real users wherever they hang out: X, Discord, Telegram, and more.</p>
+      </div>
+      <div class="card">
+          <h3>Your Token, Your Rules</h3>
+          <p>Fund campaigns in your own token. Configure reward curves, vesting, and on‑chain proofs in minutes.</p>
+      </div>
+      <div class="card">
+          <h3>Multi‑Chain Native</h3>
+          <p>ALLY’s trust layer plugs into any EVM chain. Launch on Theta, Near, or ETH.</p>
+      </div>
+  </div>
+</section>
+
+<!-- ========== BUILT ON ========== -->
+<section>
+  <h2>Built&nbsp;on&nbsp;Future‑Proof Infra</h2>
+  <div class="built-on">
+      <div>
+          <img src="./public/theta-edgecloud_black_horizontal.svg" alt="Theta EdgeCloud">
+          <p>Theta&nbsp;EdgeCloud</p>
+      </div>
+      <div>
+          <img src="./public/Logo_Near_protocol.png" alt="NEAR Protocol">
+          <p>NEAR&nbsp;Protocol</p>
+      </div>
+  </div>
+</section>
+
+<!-- ========== FOOTER ========== -->
+<footer>
+  <p>&copy; <span id="year"></span> ALLY&nbsp;Hub&nbsp; &middot; <a href="https://ally-hub.io">ally‑hub.io</a></p>
+  <p>Connect with founder <a href="https://www.linkedin.com/in/simon-piazolo/" target="_blank" rel="noopener">Simon&nbsp;Piazolo</a></p>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</footer>
+
+</body>
+</html>
