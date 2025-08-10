@@ -1,0 +1,24 @@
+{
+    "name": "@ally/intelligence-edgecloud",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "files": ["dist"],
+    "scripts": {
+      "build": "tsc -p tsconfig.json",
+      "clean": "rimraf dist",
+      "dev": "tsc -w -p tsconfig.json",
+      "test": "jest --runInBand"
+    },
+    "dependencies": {
+      "p-limit": "^6.2.0"
+    },
+    "devDependencies": {
+      "typescript": "^5.9.2",
+      "@types/jest": "^30.0.0",
+      "jest": "^30.0.5",
+      "rimraf": "^6.0.1"
+    }
+  }
