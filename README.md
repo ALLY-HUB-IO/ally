@@ -189,6 +189,30 @@ They each import their dependencies from `packages/` (via pip `path` deps or Yar
 3. Lint, test, and ensure Docker Compose still spins up
 4. Submit a PR with description & linked issue
 
+### Creating an Issue (using `.github/ISSUE_TEMPLATE.md`)
+
+- **Start**: In GitHub, go to Issues → New issue. The template content will auto-populate.
+- **Fill out sections**: `Summary`, `Current Behavior`, `Desired Behavior`, `Steps to Reproduce` (if bug), `Acceptance Criteria`, `Additional Notes`.
+- **Labels**: Add appropriate labels (e.g., `type:bug`, `type:enhancement`, `frontend`, `backend`).
+- **Good practices**:
+  - Use a clear, action-oriented title.
+  - Search for duplicates before filing.
+  - Link related issues/PRs as needed.
+
+### Opening a Pull Request (using `.github/PULL_REQUEST_TEMPLATE.md`)
+
+- **Prepare**: Create a feature branch from `main`, commit your changes, and push to your fork.
+- **Open PR**: In GitHub, open a PR from your branch; the template will prefill the description.
+- **Complete the template**:
+  - `Closes #<issue-number>` at the top to auto-close the linked issue when merged.
+  - Provide a concise `Summary` and enumerate `Changes Made`.
+  - Add `Screenshots` for UI changes.
+  - Check all items in the `Checklist` after verifying locally (lint/tests/docs as applicable).
+- **Standards**:
+  - Keep PRs focused and reasonably small.
+  - Ensure no secrets or sensitive data are included.
+  - Request reviewers and respond to feedback promptly.
+
 ---
 
 ## 📄 License
