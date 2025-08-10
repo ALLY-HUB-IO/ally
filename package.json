@@ -1,0 +1,14 @@
+{
+    "name": "ally-hub",
+    "private": true,
+    "workspaces": [
+      "apps/*",
+      "packages/*",
+      "packages/*/*",
+      "services/*"
+    ],
+    "scripts": {
+      "build": "yarn workspaces run build",
+      "dev": "yarn workspaces run dev"
+    }
+  }
