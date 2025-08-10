@@ -189,10 +189,12 @@ They each import their dependencies from `packages/` (via pip `path` deps or Yar
 3. Lint, test, and ensure Docker Compose still spins up
 4. Submit a PR with description & linked issue
 
-### Creating an Issue (using `.github/ISSUE_TEMPLATE.md`)
+### Creating an Issue (using `.github/ISSUE_TEMPLATE/bug_report.md` and `.github/ISSUE_TEMPLATE/feature_request.md`)
 
-- **Start**: In GitHub, go to Issues → New issue. The template content will auto-populate.
-- **Fill out sections**: `Summary`, `Current Behavior`, `Desired Behavior`, `Steps to Reproduce` (if bug), `Acceptance Criteria`, `Additional Notes`.
+- **Start**: In GitHub, go to Issues → New issue and choose either "Bug report" or "Feature request". The selected template will auto-populate.
+- **Fill out sections**:
+  - For bug reports (from `.github/ISSUE_TEMPLATE/bug_report.md`): `Summary`, `Steps to Reproduce`, `Expected Behavior`, `Actual Behavior`, `Screenshots or Logs`, `Environment`, `Additional Context`.
+  - For feature requests (from `.github/ISSUE_TEMPLATE/feature_request.md`): `Summary`, `Why is this needed?`, `Proposed Solution`, `Alternatives Considered`, `Acceptance Criteria`, `Additional Context`.
 - **Labels**: Add appropriate labels (e.g., `type:bug`, `type:enhancement`, `frontend`, `backend`).
 - **Good practices**:
   - Use a clear, action-oriented title.
