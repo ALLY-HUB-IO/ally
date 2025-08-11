@@ -18,7 +18,13 @@ test("ragChat sends correct payload and normalizes response", async () => {
   process.env.TEC_RAG_API_KEY  = "test-key";
 
   const ec = getEdgeCloud();
-  const out = await ec.ragChat({ projectId: "proj-1", prompt: "What is TFuel?" });
+  const out = await ec.ragChat({
+    projectId: "proj-1",
+    messages: [
+      { role: "system", content: "You are a helpful assistant." },
+      { role: "user", content: "What is TFuel?" }
+    ]
+  });
 
   expect(global.fetch).toHaveBeenCalledWith(
     "https://edgecloud.example.com/chatbot/proj-1/chat/completions",
@@ -42,6 +48,11 @@ test("ragChat throws on non-OK response", async () => {
   } as any);
 
   const ec = getEdgeCloud();
-  await expect(ec.ragChat({ projectId: "p", prompt: "x" }))
+  await expect(ec.ragChat({
+    projectId: "p",
+    messages: [
+      { role: "user", content: "x" }
+    ]
+  }))
     .rejects.toThrow(/ThetaEdgeCloud 500/i);
 });

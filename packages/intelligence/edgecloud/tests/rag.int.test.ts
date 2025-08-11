@@ -15,7 +15,10 @@ const hasEnv = required.every((k) => !!process.env[k]);
     const ec = getEdgeCloud();
     const res = await ec.ragChat({
       projectId: process.env.TEC_CHAT_ID!,
-      prompt: "Summarize Theta EdgeCloud in one sentence."
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: "Summarize Theta EdgeCloud in one sentence." }
+      ]
     });
     expect(res.text).toBeTruthy();
   }, 20_000);
