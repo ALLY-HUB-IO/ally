@@ -5,10 +5,20 @@ export type HttpOptions = {
     headers?: Record<string, string>;
   };
   
+  export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+  export type LLMSettings = {
+    temperature?: number;
+    max_tokens?: number;
+    top_p?: number;
+  }
+  
   export type RagChatRequest = {
     projectId: string;        // which KB on EdgeCloud
-    prompt: string;
-    // optionally: userId, history, temperature, etc.
+    messages: ChatMessage[];  // chat history, unlimited length
+    // Legacy fallback (optional). If provided and messages is empty, will be used as a single user message
+    prompt?: string;
+    // optionally: temperature, max_tokens
+    settings?: LLMSettings;
   };
   
   export type Source = { url: string; snippet?: string };

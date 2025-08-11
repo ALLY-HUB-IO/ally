@@ -84,14 +84,15 @@ export function thetaProvider(opts: HttpOptions): Provider {
       // Theta EdgeCloud chatbot completions endpoint
       const base = opts.baseUrl.replace(/\/$/, "");
       const url = `${base}/chatbot/${req.projectId}/chat/completions`;
+      const messages = (req.messages && req.messages.length > 0)
+        ? req.messages
+        : [{ role: "user", content: req.prompt ?? "" }];
+
       const payload = {
-        messages: [
-          { role: "system", content: "You are a helpful assistant." },
-          { role: "user", content: req.prompt }
-        ],
+        messages,
         // Reasonable defaults; can be parameterized later via RagChatRequest
-        max_tokens: 1024,
-        temperature: 0.3,
+        max_tokens: req.settings?.max_tokens ?? 1024,
+        temperature: req.settings?.temperature ?? 0.3,
         stream: false
       };
       const data = await postJson<any>(url, payload, opts);
