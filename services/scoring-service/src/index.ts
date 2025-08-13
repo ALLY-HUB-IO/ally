@@ -7,7 +7,7 @@ import { getEdgeCloud } from '@ally/intelligence-edgecloud';
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8081;
 const POSTGRES_URL = process.env.POSTGRES_URL;
 const REDIS_URL = process.env.REDIS_URL;
-const TEC_PROJECT_ID = process.env.TEC_PROJECT_ID || 'default-project';
+const TEC_CHAT_ID = process.env.TEC_CHAT_ID || 'default-project';
 
 const pg = POSTGRES_URL ? new Pool({ connectionString: POSTGRES_URL }) : null;
 const redis = REDIS_URL ? new Redis(REDIS_URL) : null;
@@ -22,7 +22,7 @@ async function startWorker() {
   }
   // example: on boot, ping TEC once so we notice misconfig early
   try {
-    const res = await ec.ragChat({ projectId: TEC_PROJECT_ID, messages: [{ role: 'user', content: 'ping' }] });
+    const res = await ec.ragChat({ projectId: TEC_CHAT_ID, messages: [{ role: 'user', content: 'ping' }] });
     console.log('[worker] TEC ok:', !!res.content);
   } catch (e) {
     console.warn('[worker] TEC check failed:', (e as Error).message);
