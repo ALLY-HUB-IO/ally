@@ -95,9 +95,10 @@ export function thetaProvider(opts: HttpOptions): Provider {
         temperature: req.settings?.temperature ?? 0.3,
         stream: false
       };
-      const data = await postJson<any>(url, payload, opts);
+      const raw = await postJson<any>(url, payload, opts);
+      const data = raw?.body ?? raw; // API may wrap payload under `body`
 
-      let text =
+      let content =
         coerceText(data?.answer) ??
         coerceText(data?.text) ??
         coerceText(data?.choices?.[0]?.message?.content) ??
@@ -110,14 +111,20 @@ export function thetaProvider(opts: HttpOptions): Provider {
         coerceText(data?.output_text) ??
         "";
 
-      if (!text) {
-        text = findFirstStringDeep(data) ?? "";
+      if (!content) {
+        content = findFirstStringDeep(data) ?? "";
       }
 
       return {
-        text,
+        content,
+        model: data?.model,
         sources: data?.sources?.map((s: any) => ({ url: s.url, snippet: s.snippet })) ?? [],
-        usage: data?.usage
+        usage: data?.usage ?? raw?.usage ?? {
+          tokens: data?.usage?.total_tokens ?? raw?.usage?.total_tokens,
+          prompt_tokens: data?.usage?.prompt_tokens ?? raw?.usage?.prompt_tokens,
+          completion_tokens: data?.usage?.completion_tokens ?? raw?.usage?.completion_tokens,
+          total_tokens: data?.usage?.total_tokens ?? raw?.usage?.total_tokens
+        }
       };
     }
   };

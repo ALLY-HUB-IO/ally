@@ -23,9 +23,10 @@ export type HttpOptions = {
   
   export type Source = { url: string; snippet?: string };
   export type RagChatResponse = {
-    text: string;
+    content: string;
+    model?: string;
     sources?: Source[];
-    usage?: { tokens?: number };
+    usage?: { tokens?: number; prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
   
   export interface RagService {
