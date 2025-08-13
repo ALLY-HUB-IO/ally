@@ -20,6 +20,6 @@ const hasEnv = required.every((k) => !!process.env[k]);
         { role: "user", content: "Summarize Theta EdgeCloud in one sentence." }
       ]
     });
-    expect(res.text).toBeTruthy();
+    expect(res.content).toBeTruthy();
   }, 20_000);
 });

@@ -36,7 +36,7 @@ test("ragChat sends correct payload and normalizes response", async () => {
       })
     })
   );
-  expect(out.text).toBe("Theta response");
+  expect(out.content).toBe("Theta response");
   expect(out.sources?.[0].url).toBe("https://docs.theta");
 });
 
