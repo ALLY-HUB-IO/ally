@@ -1,6 +1,6 @@
 import pLimit from "p-limit";
-import { Provider, RagChatRequest, RagChatResponse } from "./models";
-import { thetaProvider } from "./providers/theta";
+import { Provider, RagChatRequest, RagChatResponse } from "./models.js";
+import { thetaProvider } from "./providers/theta.js";
 
 class LRU<K, V> {
   private map = new Map<K, V>();

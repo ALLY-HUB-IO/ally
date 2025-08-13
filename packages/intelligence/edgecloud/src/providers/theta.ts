@@ -1,4 +1,4 @@
-import { HttpOptions, Provider, RagChatRequest, RagChatResponse, RagService } from "../models";
+import { HttpOptions, Provider, RagChatRequest, RagChatResponse, RagService } from "../models.js";
 
 function coerceText(value: any): string | undefined {
   if (value == null) return undefined;
