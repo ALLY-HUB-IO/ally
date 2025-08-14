@@ -29,6 +29,26 @@ services:
     volumes:
       - ../services/scoring-service/src:/app/services/scoring-service/src:ro
 
-volumes: {}
+  sentiment:
+    build:
+      context: ..
+      dockerfile: services/sentiment-service/Dockerfile
+      args:
+        SPACY_MODEL: ${SPACY_MODEL:-en_core_web_sm}
+    image: ally/sentiment-service:local
+    env_file:
+      - ./.env
+    ports:
+      - "8080:8080"
+    volumes:
+      - hf-cache:/hf-cache
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2g
+
+volumes:
+  hf-cache:
 
 
