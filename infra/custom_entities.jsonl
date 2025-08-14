@@ -1,0 +1,5 @@
+{"label":"PROJECT","pattern":"ALLY"}
+{"label":"PRODUCT","pattern":[{"LOWER":"open"},{"LOWER":"theta"}]}
+{"label":"TEAM","pattern":"pizajolo"}
+{"label":"TEAM","pattern":"@pizajolo"}
+{"label":"TOKEN","pattern":"TFUEL"}

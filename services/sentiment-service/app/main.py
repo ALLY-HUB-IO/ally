@@ -4,7 +4,7 @@ from typing import List
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-from .loaders import load_hf_sentiment, load_spacy
+from .loaders import load_hf_sentiment, load_spacy, load_spacy_with_custom_entities
 from .inference import run_single, run_batch
 from .schemas import ScoreRequest, BatchScoreRequest, ScoreResponse
 
@@ -28,7 +28,11 @@ ner_nlp = None
 def _load() -> None:
     global sent_pipeline, ner_nlp
     sent_pipeline = load_hf_sentiment()
-    ner_nlp = load_spacy()
+    # Prefer custom entities if provided via CUSTOM_ENTITIES_FILE
+    if os.environ.get("CUSTOM_ENTITIES_FILE"):
+        ner_nlp = load_spacy_with_custom_entities()
+    else:
+        ner_nlp = load_spacy()
 
 
 @app.get("/healthz")
