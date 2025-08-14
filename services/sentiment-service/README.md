@@ -37,6 +37,11 @@ HF_TOKEN=
 INFERENCE_DEVICE=cpu        # cpu | cuda
 MAX_BATCH=64
 LOG_LEVEL=info
+
+# Optional: custom entities loaded into spaCy EntityRuler (before NER)
+# JSONL lines with spaCy patterns, e.g.:
+# {"label":"PROJECT","pattern":[{"LOWER":"theta"}]}
+CUSTOM_ENTITIES_FILE=./projects/<your-project>/custom_entities.jsonl
 ```
 
 ## Supported/known-good sentiment models
@@ -112,7 +117,7 @@ docker compose up -d sentiment
 ## Implementation notes
 - Sentiment uses `transformers.pipeline(task="sentiment-analysis")`.
 - Probabilities normalized to three classes; final score = P(pos) - P(neg).
-- NER uses `spaCy` (`SPACY_MODEL`, default `en_core_web_sm`).
+- NER uses `spaCy` (`SPACY_MODEL`, default `en_core_web_sm`). If `CUSTOM_ENTITIES_FILE` is set, an `EntityRuler` is inserted before the statistical NER so your custom terms are preserved.
 - Model cache mounted at `/hf-cache` to speed restarts.
 
 ## Security & licensing

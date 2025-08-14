@@ -42,6 +42,7 @@ services:
       - "8080:8080"
     volumes:
       - hf-cache:/hf-cache
+      - ../infra/custom_entities.jsonl:/app/infra/custom_entities.jsonl:ro
     deploy:
       resources:
         limits:

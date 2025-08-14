@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from typing import Optional
 
@@ -55,5 +56,50 @@ def load_hf_sentiment():
 def load_spacy():
     model_name = os.environ.get("SPACY_MODEL", "en_core_web_sm")
     return spacy.load(model_name)
+
+
+def load_spacy_with_custom_entities():
+    """Load spaCy model and optionally augment with EntityRuler from JSONL.
+
+    Reads CUSTOM_ENTITIES_FILE from env. If present and readable, loads patterns
+    and inserts an EntityRuler BEFORE the statistical NER so custom matches are kept.
+    """
+    model_name = os.environ.get("SPACY_MODEL", "en_core_web_sm")
+    nlp = spacy.load(model_name)
+
+    custom_file_path = os.environ.get("CUSTOM_ENTITIES_FILE", "").strip()
+    if not custom_file_path:
+        return nlp
+
+    try:
+        from spacy.pipeline import EntityRuler
+
+        ruler = nlp.add_pipe(
+            "entity_ruler",
+            before="ner",
+            config={"phrase_matcher_attr": "LOWER"},
+        )
+        patterns = []
+        if os.path.exists(custom_file_path):
+            with open(custom_file_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        patterns.append(json.loads(line))
+                    except Exception:
+                        logger.warning("Skipping invalid JSONL line in %s", custom_file_path)
+            if patterns:
+                ruler.add_patterns(patterns)
+                logger.info("Loaded %d custom entity patterns from %s", len(patterns), custom_file_path)
+            else:
+                logger.warning("No valid patterns found in %s", custom_file_path)
+        else:
+            logger.warning("CUSTOM_ENTITIES_FILE not found: %s", custom_file_path)
+    except Exception as exc:
+        logger.warning("Failed to load custom entities: %s", exc)
+
+    return nlp
 
 
