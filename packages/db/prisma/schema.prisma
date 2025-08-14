@@ -1,0 +1,88 @@
+// Datasource and generator
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Core entities
+model User {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  // Unique identity of the user within the system (could be wallet, username, or platform ID)
+  identity     String     @unique
+  displayName  String?
+
+  // Derived/aggregated trust value (cached for quick reads)
+  trust        Float      @default(0)
+
+  messages     Message[]
+  reactions    Reaction[]
+  scores       Score[]
+}
+
+model Message {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  // External message id (from chat or platform) if any
+  externalId   String?    @unique
+  content      String
+  // Optional reference to author
+  authorId     String?
+  author       User?      @relation(fields: [authorId], references: [id])
+
+  // Scores, reactions linked to this message
+  scores       Score[]
+  reactions    Reaction[]
+}
+
+model Score {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+
+  // Type of score e.g., sentiment, toxicity, relevance, overall
+  kind         String
+  // Numeric score value (normalized 0..1 or -1..1 depending on kind)
+  value        Float
+
+  // Which service produced it (e.g., sentiment-service, scoring-service)
+  source       String
+
+  // Foreign keys
+  messageId    String
+  message      Message    @relation(fields: [messageId], references: [id])
+
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+
+  @@index([messageId, kind], map: "idx_score_message_kind")
+  @@index([userId, kind], map: "idx_score_user_kind")
+}
+
+model Reaction {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+
+  // Reaction type: like, dislike, emoji names, etc.
+  kind         String
+  // Optional numeric weight for certain reaction types
+  weight       Float?     @default(1)
+
+  // Foreign keys
+  messageId    String
+  message      Message    @relation(fields: [messageId], references: [id])
+
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@index([messageId, kind], map: "idx_reaction_message_kind")
+  @@index([userId, kind], map: "idx_reaction_user_kind")
+}
+
+
