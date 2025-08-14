@@ -1,0 +1,19 @@
+{
+  "name": "@ally/db",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.15.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.15.1"
+  }
+}
+
+
