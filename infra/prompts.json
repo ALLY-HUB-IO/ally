@@ -1,0 +1,5 @@
+{
+  "valueScorePrompt": "Determine the value that the message provides to other people in the Theta Ecosystem and return a score between -1 (no value or false information) and 1 (a lot of value and true). return a json style: {\"score\": <score>}. No extra text.",
+  "valueScoreContextPrompt": "Determine the value that the message provides based on this context messages ${context} to other people in the Theta Ecosystem and return a score between -1 (no value or false information) and 1 (a lot of value and true). return a json style: {\"score\": <score>}. No extra text."
+}
+
