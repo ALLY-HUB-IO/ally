@@ -31,8 +31,7 @@ describe("AllyScoreOrchestrator", () => {
     orchestrator = new AllyScoreOrchestrator({
       weights: {
         sentiment: 0.4,
-        value: 0.5,
-        entities: 0.1,
+        value: 0.5
       },
       sentimentServiceUrl: "http://localhost:8080",
     });
@@ -69,9 +68,9 @@ describe("AllyScoreOrchestrator", () => {
       } as Response);
 
       // Mock value service response
-      const mockValueResponse: ValueScoreMetrics = {
-        score: 0.5,
-      };
+      const mockValueResponse: RagChatResponse = {
+        content: '{"score": 0.5}',
+      } as any;
 
       mockEdgeCloud.ragChat.mockResolvedValue(mockValueResponse);
 
@@ -87,21 +86,22 @@ describe("AllyScoreOrchestrator", () => {
       expect(result).toHaveProperty("metadata");
       expect(result).toHaveProperty("rawResponses");
 
+      // normalize the scores to 0-1
+      const normalizedSentimentScore = (mockSentimentResponse.score + 1) / 2;
+      const normalizedValueScore = (JSON.parse(mockValueResponse.content).score + 1) / 2;
+
       // Verify breakdown
       expect(result.breakdown.sentiment.score).toBe(0.9); // (0.8 + 1) / 2
       expect(result.breakdown.sentiment.label).toBe("positive");
       expect(result.breakdown.sentiment.weight).toBe(0.4);
 
+      expect(result.breakdown.value.score).toBe(normalizedValueScore);
       expect(result.breakdown.value.weight).toBe(0.5);
-
-      expect(result.breakdown.entities.count).toBe(2);
-      expect(result.breakdown.entities.weight).toBe(0.1);
 
       // Verify final score calculation
       const expectedFinalScore = 
-        (result.breakdown.sentiment.score * 0.4) +
-        (result.breakdown.value.score * 0.5) +
-        (result.breakdown.entities.score * 0.1);
+        ((normalizedSentimentScore * 0.4) +
+        (normalizedValueScore * 0.5)) / (0.4 + 0.5);
       
       expect(result.finalScore).toBeCloseTo(expectedFinalScore, 3);
 
@@ -136,11 +136,7 @@ describe("AllyScoreOrchestrator", () => {
         json: async () => mockSentimentResponse,
       } as Response);
 
-      const mockValueResponse: ValueScoreMetrics = {
-        score: 0.5,
-      };
-
-      mockEdgeCloud.ragChat.mockResolvedValue(mockValueResponse);
+      mockEdgeCloud.ragChat.mockResolvedValue({ content: '{"score": 0.5}' });
 
       const result = await orchestrator.score({
         text: "This is terrible",
@@ -196,8 +192,7 @@ describe("AllyScoreOrchestrator", () => {
     it("should update configuration correctly", () => {
       const newWeights = {
         sentiment: 0.6,
-        value: 0.3,
-        entities: 0.1,
+        value: 0.3
       };
 
       orchestrator.updateConfig({ weights: newWeights });
@@ -211,8 +206,7 @@ describe("AllyScoreOrchestrator", () => {
         orchestrator.updateConfig({
           weights: {
             sentiment: -0.1, // Invalid negative weight
-            value: 0.5,
-            entities: 0.1,
+            value: 0.5
           },
         });
       }).toThrow("All weights must be non-negative");

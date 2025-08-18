@@ -27,7 +27,7 @@ describe("ConfigManager", () => {
 
     it("should merge initial config with defaults", () => {
       const manager = new ConfigManager({
-        weights: { sentiment: 0.8, value: 0.2, entities: 0.0 },
+        weights: { sentiment: 0.8, value: 0.2},
         sentimentServiceUrl: "http://custom:9000",
       });
 
@@ -35,7 +35,6 @@ describe("ConfigManager", () => {
 
       expect(config.weights.sentiment).toBe(0.8);
       expect(config.weights.value).toBe(0.2);
-      expect(config.weights.entities).toBe(0.0);
       expect(config.sentimentServiceUrl).toBe("http://custom:9000");
       expect(config.ragSettings).toEqual(DEFAULT_CONFIG.ragSettings); // Should keep defaults
     });
@@ -43,7 +42,7 @@ describe("ConfigManager", () => {
     it("should validate config on construction", () => {
       expect(() => {
         new ConfigManager({
-          weights: { sentiment: -0.1, value: 0.5, entities: 0.1 },
+          weights: { sentiment: -0.1, value: 0.5},
         });
       }).toThrow("All weights must be non-negative");
     });
@@ -57,7 +56,7 @@ describe("ConfigManager", () => {
     });
 
     it("should update weights correctly", () => {
-      const newWeights = { sentiment: 0.6, value: 0.3, entities: 0.1 };
+      const newWeights = { sentiment: 0.6, value: 0.4};
       manager.updateConfig({ weights: newWeights });
 
       const config = manager.getConfig();
@@ -70,7 +69,6 @@ describe("ConfigManager", () => {
       const config = manager.getConfig();
       expect(config.weights.sentiment).toBe(0.8);
       expect(config.weights.value).toBe(DEFAULT_WEIGHTS.value);
-      expect(config.weights.entities).toBe(DEFAULT_WEIGHTS.entities);
     });
 
     it("should update service URL", () => {
@@ -93,7 +91,7 @@ describe("ConfigManager", () => {
     it("should validate updated config", () => {
       expect(() => {
         manager.updateConfig({
-          weights: { sentiment: -0.1, value: 0.5, entities: 0.1 },
+          weights: { sentiment: -0.1, value: 0.5},
         });
       }).toThrow("All weights must be non-negative");
     });
@@ -112,7 +110,6 @@ describe("ConfigManager", () => {
       const config = manager.getConfig();
       expect(config.weights.sentiment).toBe(0.7);
       expect(config.weights.value).toBe(0.3);
-      expect(config.weights.entities).toBe(DEFAULT_WEIGHTS.entities);
     });
 
     it("should validate weights", () => {
@@ -126,7 +123,7 @@ describe("ConfigManager", () => {
     it("should reject negative weights", () => {
       expect(() => {
         new ConfigManager({
-          weights: { sentiment: 0.5, value: -0.1, entities: 0.1 },
+          weights: { sentiment: 0.5, value: -0.1},
         });
       }).toThrow("All weights must be non-negative");
     });
@@ -134,7 +131,7 @@ describe("ConfigManager", () => {
     it("should reject all-zero weights", () => {
       expect(() => {
         new ConfigManager({
-          weights: { sentiment: 0, value: 0, entities: 0 },
+          weights: { sentiment: 0, value: 0},
         });
       }).toThrow("At least one weight must be greater than 0");
     });
@@ -143,11 +140,11 @@ describe("ConfigManager", () => {
       const consoleSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
       new ConfigManager({
-        weights: { sentiment: 0.8, value: 0.8, entities: 0.8 }, // Sum = 2.4
+        weights: { sentiment: 0.8, value: 0.8}, // Sum = 1.6 with no entities
       });
 
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Scoring weights sum to 2.400")
+        expect.stringContaining("Scoring weights sum to 1.600")
       );
     });
 
@@ -163,8 +160,7 @@ describe("ConfigManager", () => {
   describe("fromEnvironment", () => {
     it("should load config from environment variables", () => {
       process.env.SCORING_WEIGHT_SENTIMENT = "0.6";
-      process.env.SCORING_WEIGHT_RAG = "0.3";
-      process.env.SCORING_WEIGHT_ENTITIES = "0.1";
+      process.env.SCORING_WEIGHT_VALUE = "0.3";
       process.env.SENTIMENT_SERVICE_URL = "http://env-service:8080";
       process.env.RAG_TEMPERATURE = "0.7";
       process.env.RAG_MAX_TOKENS = "2048";
@@ -173,8 +169,7 @@ describe("ConfigManager", () => {
       const config = manager.getConfig();
 
       expect(config.weights.sentiment).toBe(0.6);
-        expect(config.weights.value).toBe(0.3);
-      expect(config.weights.entities).toBe(0.1);
+      expect(config.weights.value).toBe(0.3);
       expect(config.sentimentServiceUrl).toBe("http://env-service:8080");
       expect(config.ragSettings?.temperature).toBe(0.7);
       expect(config.ragSettings?.max_tokens).toBe(2048);
@@ -197,7 +192,6 @@ describe("ConfigManager", () => {
 
       expect(config.weights.sentiment).toBe(0.8);
       expect(config.weights.value).toBe(DEFAULT_WEIGHTS.value);
-      expect(config.weights.entities).toBe(DEFAULT_WEIGHTS.entities);
       expect(config.sentimentServiceUrl).toBe("http://partial:8080");
     });
   });
