@@ -7,8 +7,7 @@ import {
   ScoringConfig,
   PartialScoringConfig,
   SentimentService,
-  RagScoreMetrics,
-  ValueScoreMetrics
+  RagScoreMetrics
 } from "./types.js";
 import { HttpSentimentClient } from "./sentiment-client.js";
 import { ConfigManager } from "./config.js";
@@ -56,15 +55,14 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
 
     // Calculate individual scores
     const sentimentScore = this.calculateSentimentScore(sentimentResult);
-    const entitiesScore = this.calculateEntitiesScore(sentimentResult);
+    const valueScoreFinal = this.calculateValueScore(valueScore);
 
     // Calculate weighted scores
     const weightedSentiment = sentimentScore * config.weights.sentiment;
-    const weightedValue = valueScore * config.weights.value;
-    const weightedEntities = entitiesScore * config.weights.entities;
+    const weightedValue = valueScoreFinal * config.weights.value;
 
-    // Final combined score
-    const finalScore = weightedSentiment + weightedValue + weightedEntities;
+    // Final combined score and normalize to 0-1
+    const finalScore = (weightedSentiment + weightedValue) / (config.weights.sentiment + config.weights.value);
 
     const processingTime = Date.now() - startTime;
 
@@ -78,15 +76,9 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
           weightedScore: weightedSentiment,
         },
         value: {
-          score: valueScore,
+          score: valueScoreFinal,
           weight: config.weights.value,
           weightedScore: weightedValue,
-        },
-        entities: {
-          score: entitiesScore,
-          count: sentimentResult.entities.length,
-          weight: config.weights.entities,
-          weightedScore: weightedEntities,
         },
       },
       metadata: {
@@ -184,28 +176,22 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
   }
 
 
-  private calculateValueScore(valueScoreResult: ValueScoreMetrics): ValueScoreMetrics {
-    // Calculate relevance based on sources found
-    const score = valueScoreResult.score;
-
+  private calculateValueScore(valueScore: number): number {
     // Normalize token usage (lower is better, so invert)
-    const normalizedScore = Math.max(0, 1 - (score / 2)); // Assume 2000 tokens = max penalty
-    return {
-      score: normalizedScore,
-    };
+    return (valueScore + 1) / 2;
   }
 
-  private calculateEntitiesScore(sentimentResult: any): number {
-    // Score based on number and quality of entities found
-    const entityCount = sentimentResult.entities.length;
+//   private calculateEntitiesScore(sentimentResult: any): number {
+//     // Score based on number and quality of entities found
+//     const entityCount = sentimentResult.entities.length;
     
-    // Give higher scores for more entities, but with diminishing returns
-    if (entityCount === 0) return 0;
-    if (entityCount <= 2) return entityCount * 0.3;
-    if (entityCount <= 5) return 0.6 + ((entityCount - 2) * 0.1);
+//     // Give higher scores for more entities, but with diminishing returns
+//     if (entityCount === 0) return 0;
+//     if (entityCount <= 2) return entityCount * 0.3;
+//     if (entityCount <= 5) return 0.6 + ((entityCount - 2) * 0.1);
     
-    return Math.min(1.0, 0.9 + ((entityCount - 5) * 0.02)); // Cap at 1.0
-  }
+//     return Math.min(1.0, 0.9 + ((entityCount - 5) * 0.02)); // Cap at 1.0
+//   }
 }
 
 // Factory function for easy instantiation

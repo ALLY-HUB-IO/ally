@@ -38,7 +38,6 @@ export interface ScoringRequest {
 export interface ScoringWeights {
   sentiment: number; // Weight for sentiment score
   value: number; // Weight for value score
-  entities: number; // Weight for entity recognition
 }
 
 export interface ScoringConfig {
@@ -83,12 +82,6 @@ export interface CombinedScoringResult {
     };
     value: {
       score: number;
-      weight: number;
-      weightedScore: number;
-    };
-    entities: {
-      score: number;
-      count: number;
       weight: number;
       weightedScore: number;
     };

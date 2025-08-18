@@ -5,8 +5,7 @@ import path from "node:path";
 // Default configuration
 export const DEFAULT_WEIGHTS: ScoringWeights = {
   sentiment: 0.4, // 40% weight for sentiment analysis
-  value: 0.5,      // 50% weight for RAG relevance/quality
-  entities: 0.1,  // 10% weight for entity recognition
+  value: 0.5,      // 50% weight for Value Score
 };
 
 export const DEFAULT_CONFIG: ScoringConfig = {
@@ -82,12 +81,12 @@ export class ConfigManager {
     const { weights } = this.config;
 
     // Ensure weights are non-negative
-    if (weights.sentiment < 0 || weights.value < 0 || weights.entities < 0) {
+    if (weights.sentiment < 0 || weights.value < 0) {
       throw new Error("All weights must be non-negative");
     }
 
     // Ensure weights sum to a reasonable value (warn if not close to 1.0)
-    const totalWeight = weights.sentiment + weights.value + weights.entities;
+    const totalWeight = weights.sentiment + weights.value;
     if (totalWeight === 0) {
       throw new Error("At least one weight must be greater than 0");
     }
@@ -114,13 +113,11 @@ export class ConfigManager {
 
     // Load weights from environment
     const sentimentWeight = process.env.SCORING_WEIGHT_SENTIMENT;
-    const ragWeight = process.env.SCORING_WEIGHT_RAG;
-    const entitiesWeight = process.env.SCORING_WEIGHT_ENTITIES;
+    const valueWeight = process.env.SCORING_WEIGHT_VALUE;
 
     const weights: Partial<ScoringWeights> = {};
     if (sentimentWeight) weights.sentiment = parseFloat(sentimentWeight);
-    if (ragWeight) weights.value = parseFloat(ragWeight);
-    if (entitiesWeight) weights.entities = parseFloat(entitiesWeight);
+    if (valueWeight) weights.value = parseFloat(valueWeight);
     
     if (Object.keys(weights).length > 0) {
       envConfig.weights = weights;
