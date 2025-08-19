@@ -6,129 +6,122 @@
 
 ## 🚀 Project Overview
 
-ALLY-Hub is a mono-repo for building a service-oriented platform that ingests social interactions (e.g., Discord messages), uses AI to evaluate their value and sentiment, and dispatches tokenized rewards via Near Shade Agents. It provides both a landing page (website) and an admin dashboard for project owners to:
+ALLY-Hub is a mono-repo for a service-oriented platform that ingests social interactions (e.g., Discord messages), evaluates their value and sentiment using AI, and exposes simple APIs you can integrate with other systems. The repo currently includes:
 
+- A static marketing site (`apps/website`)
+- A TypeScript scoring API (`services/scoring-service`) that calls EdgeCloud
+- A Python FastAPI sentiment/NER service (`services/sentiment-service`)
+- Shared TypeScript libraries in `packages/`
+
+The goal is to create:
 - View real-time stats & trends
 - Inspect scored interactions with rationale & sentiment
 - Collect data for fine-tuning AI models
 
 ---
 
-## 📁 Repository Structure (Example for now)
+## 📁 Repository Structure (current)
 
 ```text
 ally/
 ├── apps/
-│   ├── dashboard/           # React admin UI (Stats, Trends, Data Collection)
-│   └── website/             # Public Next.js marketing site (Cloudflare Pages)
-├── packages/               # Shared libraries (TS & Python)
-│   ├── intelligence/        # AI logic (RAG, sentiment, config)
-│   │   ├── rag-evaluator/
-│   │   ├── sentiment-reach/
-│   │   └── config-service/
-│   ├── identity/           # User resolution & profile linking
-│   ├── platform-adapters/  # Discord, Telegram, X normalizers
-│   ├── scoring-orchestrator/# Composes RAG + sentiment + weights
-│   ├── reward-dispatcher/  # Near Shade Agent integration logic
-│   ├── feedback-loop/      # CLI/UI for true-value feedback
-│   ├── api-gateway/        # OpenAPI routes & auth middleware
-│   └── dashboard/          # Shared UI components for admin dashboard
-├── services/               # Dockerized microservices
-│   ├── ingestion-service/  # Boots platform adapters, publishes events
-│   ├── scoring-service/    # Consumes events, calls AI, writes Postgres
-│   ├── intelligence-service/# Hosts FastAPI AI endpoints
-│   ├── reward-service/     # Listens scored events, dispatches rewards
-│   └── dashboard-service/  # Serves dashboard backend + frontend
-├── infra/                  # K8s manifests, Helm, Terraform scripts
-├── projects/               # Project-specific context & config
-│   └── <project-name>/     # vector-store docs + config.yaml
-├── docker-compose.yml      # Local dev orchestration
-└── .github/                # CI & CD workflows
+│   └── website/                 # Static public site (HTML/CSS)
+├── packages/
+│   ├── db/                      # Prisma schema/client for Postgres
+│   ├── intelligence/
+│   │   └── edgecloud/           # EdgeCloud RAG client (Theta provider)
+│   └── scoring-orchestrator/    # Combines sentiment + value scoring
+├── services/
+│   ├── scoring-service/         # Node/Express API (calls EdgeCloud)
+│   └── sentiment-service/       # FastAPI service (sentiment + NER)
+├── infra/                       # docker-compose, env example and prompts file
+└── .github/                     # CI/CD workflows (if present)
 ```
 
 ---
 
 ## 🛠️ Prerequisites
 
-- **Node.js** v20.x (Yarn 1.x or npm 7+)
-- **Python** 3.11
-- **Docker** & **Docker Compose**
-- **Cloudflare Pages** account (for `apps/website`)
+- Node.js v20.x (Yarn 1.x)
+- Python 3.11
+- Docker & Docker Compose
 
 ---
 
-## ⚙️ Getting Started (Local Development)
+## ⚙️ Getting Started (Local)
 
-1. **Clone the repo**
+1) Clone
+```bash
+git clone https://github.com/your-org/ally.git
+cd ally
+```
 
-   ```bash
-   git clone https://github.com/your-org/ally.git
-   cd ally
-   ```
+2) Install workspace dependencies
+```bash
+yarn install
+```
 
-2. **Install dependencies**
+3) Configure environment
+```bash
+cd infra
+cp example.env .env
+# edit .env → set TEC_RAG_BASE_URL, TEC_RAG_API_KEY, TEC_CHAT_ID, etc.
+```
 
-   ```bash
-   # Node.js workspaces
-   yarn install  # or npm install
+Key variables (see `infra/example.env`):
+- `TEC_RAG_BASE_URL`, `TEC_RAG_API_KEY`, `TEC_CHAT_ID`
+- `POSTGRES_URL` (optional for now)
+- `SENTIMENT_MODEL_ID`, `SPACY_MODEL`, `HF_TOKEN` (optional)
 
-   # Python packages (optional, if editing AI services)
-   cd packages/intelligence/rag-evaluator && poetry install
-   cd ../sentiment-reach && poetry install
-   cd ../config-service    && poetry install
-   cd ../../../
-   ```
+4) Start local stack
+```bash
+cd infra
+docker compose up --build
+```
 
-3. **Environment variables**
+This brings up:
+- `sentiment-service` on http://localhost:8080
+- `scoring-service` on http://localhost:8081
+- `redis` and `postgres` (optional for future use)
 
-   - Create a `.env` file in `infra/`:
-     ```ini
-     THETA_API_KEY=your_theta_sandbox_key
-     REDIS_URL=redis://redis:6379
-     POSTGRES_URL=postgresql://ally:secret@postgres/allyhub
-     ```
-
-4. **Start local stack**
-
-   ```bash
-   cd infra
-   docker-compose up --build
-   ```
-
-   This brings up:
-
-   - PostgreSQL (allyhub database)
-   - Redis (queues & cache)
-   - FAISS stub
-   - All service containers (ingestion, intelligence, scoring, reward, dashboard)
-
-5. **Verify**
-
-   - Dashboard: [http://localhost:3000](http://localhost:3000)
-   - Public website (optional): run separately: `cd apps/website && yarn build && yarn export && serve out`
+5) Verify
+```bash
+curl -s http://localhost:8080/healthz
+curl -s http://localhost:8081/health
+```
 
 ---
 
-## 🚧 Packages (Libraries)
+## 🔧 Local development (alternatives)
 
-### `packages/intelligence`
+- Run scoring service from workspace (without Docker):
+```bash
+yarn workspace @ally/intelligence-edgecloud build
+yarn workspace scoring-service dev
+# → http://localhost:8081
+```
 
-- **rag-evaluator**: Theta EdgeCloud RAG client, caching
-- **sentiment-reach**: spaCy NER + sentiment model stub
-- **config-service**: YAML/DB-backed project config loader & CRUD API
+- Explore the DB package (optional): see `packages/db/README.md` for Prisma commands.
 
-### `packages/platform-adapters`
+---
 
-- Normalization for Discord, Telegram, X
-- Emits events to Redis Streams
+## 📦 Packages
 
-### Business logic
+- `packages/intelligence/edgecloud` — EdgeCloud RAG client with Theta provider. Includes simple concurrency control and in-memory caching.
+  - Build/tests: `yarn workspace @ally/intelligence-edgecloud build | test`
 
-- **scoring-orchestrator**: merges value & sentiment → final score
+- `packages/scoring-orchestrator` — SDK that combines sentiment and value scoring, applies weights, and returns a single score with breakdowns.
+  - See `packages/scoring-orchestrator/README.md` for API and examples.
+
+- `packages/db` — Prisma schema and generated client for Postgres, shared across services.
+  - See `packages/db/README.md` for setup, migrations, and examples.
+
+TODO:
 - **reward-dispatcher**: Near Shade Agent command formatter
 - **feedback-loop**: CLI/UI for human-in-the-loop feedback
-- **api-gateway**: Express/Koa routes, auth middleware
 - **dashboard**: Shared React components
+- **platform-adapters**: Normalization for Discord, Telegram, X
+- **intelligence/...**: Adapters to other cloud providers and AI models besides Theta
 
 ---
 
@@ -136,19 +129,26 @@ ally/
 
 Each `services/<name>` folder has its own `Dockerfile`:
 
-- **ingestion-service**: boots adapters via TS
-- **scoring-service**: TypeScript consumer of Redis Streams → DB
-- **intelligence-service**: Python FastAPI exposing `/evaluate` & `/analyze`
-- **reward-service**: TS listener for reward decisions
-- **dashboard-service**: TS backend + React frontend
+- `services/sentiment-service` (FastAPI)
+  - Endpoints: `POST /score`, `POST /batch/score`, `GET /healthz`, `GET /readyz`
+  - Config via `infra/.env` (e.g., `SENTIMENT_MODEL_ID`, `SPACY_MODEL`)
+  - See `services/sentiment-service/README.md`
 
-They each import their dependencies from `packages/` (via pip `path` deps or Yarn workspaces).
+- `services/scoring-service` (Node/Express)
+  - Endpoints: `POST /v1/score`, jobs under `/v1/score-jobs`, `GET /health`
+  - Uses `@ally/intelligence-edgecloud` to call EdgeCloud
+  - See `services/scoring-service/README.md`
+
+TODO:
+- **ingestion-service**: boots adapters via TS
+- **reward-service**: TS listener for reward decisions (Near Shade Agent)
+- **dashboard-service**: TS backend + React frontend
 
 ---
 
 ## 🌐 Frontend Applications (`apps/`)
 
-- **dashboard**: React admin UI to: view stats, trends, and flag messages
+- **dashboard (TODO)**: React admin UI to: view stats, trends, and flag messages
 - **website**: Public Next.js site (static export) deployed on Cloudflare Pages
 
 ### Deploying `apps/website`
@@ -222,4 +222,3 @@ They each import their dependencies from `packages/` (via pip `path` deps or Yar
 This project is licensed for non-commercial use only. You may use, modify, and distribute this code for non-commercial purposes only. Commercial use is strictly prohibited.
 
 For full terms and conditions, please see the [LICENSE](./LICENCE) file.
-
