@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@ally/intelligence-edgecloud": "workspace:*",
+    "@ally/uniqueness": "workspace:*",
     "dotenv": "^17.2.1"
   },
   "devDependencies": {

@@ -31,7 +31,8 @@ describe("AllyScoreOrchestrator", () => {
     orchestrator = new AllyScoreOrchestrator({
       weights: {
         sentiment: 0.4,
-        value: 0.5
+        value: 0.5,
+        uniqueness: 0.1,
       },
       sentimentServiceUrl: "http://localhost:8080",
     });
@@ -98,10 +99,16 @@ describe("AllyScoreOrchestrator", () => {
       expect(result.breakdown.value.score).toBe(normalizedValueScore);
       expect(result.breakdown.value.weight).toBe(0.5);
 
-      // Verify final score calculation
+      // Verify uniqueness breakdown (no neighbors -> uniqueness score = 1)
+      expect(result.breakdown.uniqueness.weight).toBe(0.1);
+      expect(result.breakdown.uniqueness.score).toBe(1);
+      expect(result.breakdown.uniqueness.weightedScore).toBeCloseTo(0.1, 5);
+
+      // Verify final score calculation including uniqueness
       const expectedFinalScore = 
         ((normalizedSentimentScore * 0.4) +
-        (normalizedValueScore * 0.5)) / (0.4 + 0.5);
+        (normalizedValueScore * 0.5) +
+        (1 * 0.1)) / (0.4 + 0.5 + 0.1);
       
       expect(result.finalScore).toBeCloseTo(expectedFinalScore, 3);
 
@@ -113,6 +120,7 @@ describe("AllyScoreOrchestrator", () => {
       // Verify raw responses are included
       expect(result.rawResponses.sentiment).toEqual(mockSentimentResponse);
       expect(result.rawResponses.value).toEqual(mockValueResponse);
+      expect(result.rawResponses.uniqueness).toEqual({ score: 1, maxCosine: 0 });
     });
 
     it("should handle negative sentiment scores correctly", async () => {
@@ -198,7 +206,10 @@ describe("AllyScoreOrchestrator", () => {
       orchestrator.updateConfig({ weights: newWeights });
 
       const config = orchestrator.getConfig();
-      expect(config.weights).toEqual(newWeights);
+      expect(config.weights.sentiment).toBe(newWeights.sentiment);
+      expect(config.weights.value).toBe(newWeights.value);
+      // Uniqueness should remain unchanged
+      expect(config.weights.uniqueness).toBe(0.1);
     });
 
     it("should validate configuration on update", () => {

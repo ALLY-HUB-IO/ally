@@ -38,6 +38,7 @@ export interface ScoringRequest {
 export interface ScoringWeights {
   sentiment: number; // Weight for sentiment score
   value: number; // Weight for value score
+  uniqueness: number; // Weight for uniqueness score
 }
 
 export interface ScoringConfig {
@@ -71,6 +72,11 @@ export interface ValueScoreMetrics {
   score: number; // 0-1 based on value score
 }
 
+export interface UniquenessScoreMetrics {
+  score: number; // 0-1 based on uniqueness score
+  maxCosine: number; // Maximum cosine similarity score
+}
+
 export interface CombinedScoringResult {
   finalScore: number; // Weighted combination of all scores
   breakdown: {
@@ -85,6 +91,12 @@ export interface CombinedScoringResult {
       weight: number;
       weightedScore: number;
     };
+    uniqueness: {
+      score: number;
+      weight: number;
+      weightedScore: number;
+      maxCosine: number;
+    };
   };
   metadata: {
     processingTimeMs: number;
@@ -97,6 +109,7 @@ export interface CombinedScoringResult {
   rawResponses: {
     sentiment: SentimentResponse;
     value: RagChatResponse;
+    uniqueness: UniquenessScoreMetrics;
   };
 }
 
