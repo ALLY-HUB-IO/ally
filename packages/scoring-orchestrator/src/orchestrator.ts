@@ -1,5 +1,6 @@
 import { getEdgeCloud } from "@ally/intelligence-edgecloud";
 import type { RagChatResponse, ChatMessage } from "@ally/intelligence-edgecloud";
+import { createUniquenessScorer } from "@ally/uniqueness";
 import { 
   ScoringOrchestrator, 
   ScoringRequest, 
@@ -15,7 +16,7 @@ import { ConfigManager } from "./config.js";
 export class AllyScoreOrchestrator implements ScoringOrchestrator {
   private configManager: ConfigManager;
   private sentimentService: SentimentService;
-
+  private uniqueness: Promise<any>;
   constructor(config?: PartialScoringConfig) {
     this.configManager = config ? new ConfigManager(config) : ConfigManager.fromEnvironment();
     
@@ -24,6 +25,8 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
       baseUrl: currentConfig.sentimentServiceUrl,
       timeoutMs: 10_000,
     });
+
+    this.uniqueness = createUniquenessScorer({ backend: "memory", dim: 128 });
   }
 
   async score(request: ScoringRequest): Promise<CombinedScoringResult> {
@@ -31,9 +34,14 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
     const config = this.configManager.getConfig();
 
     // Execute initial API calls in parallel for better performance
-    const [sentimentResult, initialValueResp] = await Promise.all([
+    const [sentimentResult, initialValueResp, uniquenessResult] = await Promise.all([
       this.sentimentService.score(request.text),
       this.callRagChatServiceValueScore(request),
+      (async () => {
+        const scorer = await this.uniqueness;
+        const scope = { projectId: request.projectId, platform: "other", channelId: request.context?.messageId } as any;
+        return scorer.score(request.text, scope);
+      })(),
     ]);
 
     // Try to extract score from initial response; if invalid, retry with default (no context)
@@ -60,9 +68,11 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
     // Calculate weighted scores
     const weightedSentiment = sentimentScore * config.weights.sentiment;
     const weightedValue = valueScoreFinal * config.weights.value;
+    const uniquenessScore = uniquenessResult?.score ?? 0;
+    const weightedUniqueness = uniquenessScore * config.weights.uniqueness;
 
     // Final combined score and normalize to 0-1
-    const finalScore = (weightedSentiment + weightedValue) / (config.weights.sentiment + config.weights.value);
+    const finalScore = (weightedSentiment + weightedValue + weightedUniqueness) / (config.weights.sentiment + config.weights.value + config.weights.uniqueness);
 
     const processingTime = Date.now() - startTime;
 
@@ -80,6 +90,12 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
           weight: config.weights.value,
           weightedScore: weightedValue,
         },
+        uniqueness: {
+          score: uniquenessScore,
+          weight: config.weights.uniqueness,
+          weightedScore: weightedUniqueness,
+          maxCosine: uniquenessResult?.maxCosine ?? 0,
+        },
       },
       metadata: {
         processingTimeMs: processingTime,
@@ -92,6 +108,10 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
       rawResponses: {
         sentiment: sentimentResult,
         value: chosenValueResp,
+        uniqueness: {
+          score: uniquenessScore,
+          maxCosine: uniquenessResult?.maxCosine ?? 0,
+        },
       },
     };
   }
