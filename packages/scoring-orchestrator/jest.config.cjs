@@ -10,6 +10,7 @@ module.exports = {
   },
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1",
+    "^@ally/uniqueness$": "<rootDir>/../uniqueness/src/factory.ts"
   },
   testMatch: [
     "<rootDir>/src/**/*.test.ts",
