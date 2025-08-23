@@ -1,10 +1,10 @@
 {
-  "name": "@ally/scoring-orchestrator",
+  "name": "@ally/uniqueness",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "types": "index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -22,9 +22,7 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@ally/intelligence-edgecloud": "workspace:*",
-    "@ally/uniqueness": "workspace:*",
-    "dotenv": "^17.2.1"
+    "@ally/db": "workspace:*"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
@@ -34,3 +32,5 @@
     "typescript": "^5.9.2"
   }
 }
+
+
