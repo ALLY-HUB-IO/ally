@@ -22,7 +22,7 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@ally/db": "workspace:*"
+    "@ally/db": "*"
   },
   "devDependencies": {
     "@types/jest": "^30.0.0",
