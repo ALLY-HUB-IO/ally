@@ -22,8 +22,8 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@ally/intelligence-edgecloud": "workspace:*",
-    "@ally/uniqueness": "workspace:*",
+    "@ally/intelligence-edgecloud": "*",
+    "@ally/uniqueness": "*",
     "dotenv": "^17.2.1"
   },
   "devDependencies": {
