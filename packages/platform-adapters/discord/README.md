@@ -20,6 +20,43 @@ This package is part of the monorepo; dependencies are installed at the root:
 yarn install
 ```
 
+### Configure environment (.env)
+
+Add your Discord bot token to `infra/.env` (copy from `infra/example.env`):
+
+```
+DISCORD_BOT_TOKEN=your-bot-token-here
+```
+
+The adapter will pick it up via `process.env.DISCORD_BOT_TOKEN`. You can also pass `token` in `startDiscordAdapter` options if you prefer not to use env variables.
+
+### Setup Discord Bot
+
+1. **Create a Discord Application & Bot**
+   - Go to [Discord Developer Portal](https://discord.com/developers/applications)
+   - Click "New Application" and give it a name
+   - Go to "Bot" section and click "Add Bot"
+   - Copy the bot token (you'll need this for `DISCORD_BOT_TOKEN`)
+
+2. **Enable Required Gateway Intents**
+   - In the Bot section, scroll down to "Privileged Gateway Intents"
+   - Enable these intents:
+     - ✅ **Message Content Intent** (required to read message content)
+     - ✅ **Server Members Intent** (optional, for member info)
+     - ✅ **Presence Intent** (optional, for presence updates)
+
+3. **Invite Bot to Your Server**
+   - Go to "OAuth2" → "URL Generator"
+   - Select scopes: `bot`
+   - Select bot permissions: `Read Messages/View Channels`, `Read Message History`
+   - Copy the generated URL and open it in a browser to invite the bot
+
+4. **Add Token to Environment**
+   - Add your bot token to `infra/.env`:
+   ```env
+   DISCORD_BOT_TOKEN=your-bot-token-here
+   ```
+
 ## Usage
 
 ```ts
