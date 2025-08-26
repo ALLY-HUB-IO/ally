@@ -1,5 +1,10 @@
 import { Client, Events, GatewayIntentBits, Partials, Message } from "discord.js";
 import { normalizeMessageCreated, normalizeMessageUpdated } from "../src/normalizers";
+import { config } from "dotenv";
+import { resolve } from "path";
+
+// Load .env from infra folder
+config({ path: resolve(__dirname, "../../../../infra/.env"), override: true });
 
 // Opt-in E2E: requires DISCORD_E2E=1 and DISCORD_BOT_TOKEN to be set.
 const enabled = process.env.DISCORD_E2E === "1" && !!process.env.DISCORD_BOT_TOKEN;
