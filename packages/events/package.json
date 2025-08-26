@@ -9,7 +9,8 @@
     ".": "./dist/index.js",
     "./catalog": "./dist/catalog.js",
     "./envelope": "./dist/envelope.js",
-    "./schemas": "./dist/schemas.js"
+    "./schemas": "./dist/schemas.js",
+    "./streams": "./dist/streams.js"
   },
   "files": [
     "dist"
