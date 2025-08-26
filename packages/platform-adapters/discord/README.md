@@ -104,8 +104,9 @@ The adapter wraps these payloads in an envelope containing:
 
 - Build: `yarn build`
 - Tests: `yarn test`
+- E2E Tests: `yarn test:e2e` (requires valid `DISCORD_BOT_TOKEN` in `infra/.env`)
 
-Tests cover the normalization logic in `src/normalizers.ts`.
+Tests cover the normalization logic in `src/normalizers.ts`. The E2E test connects to Discord and logs normalized messages for 5 seconds.
 
 ## Required intents
 
