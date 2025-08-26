@@ -25,6 +25,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    # ports: ["6379:6379"] # For running local tests
 
   scoring-service:
     build:
