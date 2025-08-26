@@ -1,0 +1,40 @@
+{
+  "name": "@ally/platform-adapter-discord",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./normalizers": "./dist/normalizers.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rimraf dist",
+    "dev": "tsc -w -p tsconfig.json",
+    "test": "jest --runInBand",
+    "test:e2e": "DISCORD_E2E=1 jest --runInBand tests/e2e.bot.test.ts"
+  },
+  "dependencies": {
+    "@ally/events": "*",
+    "discord.js": "^14.15.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "dotenv": "^17.2.1",
+    "jest": "^30.0.5",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5.9.2"
+  }
+}
+
+
