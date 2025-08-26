@@ -20,7 +20,8 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist",
     "dev": "tsc -w -p tsconfig.json",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "test:e2e": "DISCORD_E2E=1 jest --runInBand tests/e2e.bot.test.ts"
   },
   "dependencies": {
     "@ally/events": "*",
