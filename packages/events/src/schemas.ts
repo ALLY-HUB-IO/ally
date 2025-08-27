@@ -55,8 +55,21 @@ export const DiscordReactionEvent = z.object({
   createdAt: z.string(),
 });
 
+export const DiscordMessageDeleted = z.object({
+  externalId: z.string(),
+  guildId: z.string().nullable().optional(),
+  channelId: z.string(),
+  threadId: z.string().nullable().optional(),
+  author: DiscordAuthor.optional(),
+  content: z.string().optional(),
+  deletedAt: z.string(),
+  deletedBy: DiscordAuthor.optional(),
+  reason: z.string().optional(),
+});
+
 export type DiscordMessageCreated = z.infer<typeof DiscordMessageCreated>;
 export type DiscordMessageUpdated = z.infer<typeof DiscordMessageUpdated>;
 export type DiscordReactionEvent = z.infer<typeof DiscordReactionEvent>;
+export type DiscordMessageDeleted = z.infer<typeof DiscordMessageDeleted>;
 
 

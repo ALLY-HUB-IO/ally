@@ -1,7 +1,7 @@
 import { Client, GatewayIntentBits, Partials, Message, Events, MessageReaction } from "discord.js";
 import { EventEnvelope } from "@ally/events/envelope";
 import { EventType, EVENT_VERSION } from "@ally/events/catalog";
-import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved } from "./normalizers.js";
+import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved, normalizeMessageDeleted } from "./normalizers.js";
 
 export type Publisher = {
   publish: <T>(event: EventEnvelope<T>) => Promise<void>;
@@ -136,6 +136,36 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("Failed to normalize or publish MessageReactionRemove", err);
+    }
+  });
+
+  client.on(Events.MessageDelete, async (message) => {
+    try {
+      // For deleted messages, we might have partial data
+      const guildId = message.guild?.id;
+      const channelId = message.channelId;
+      
+      // Handle both full and partial messages
+      const messageData = message.partial ? null : message;
+      const payload = normalizeMessageDeleted(messageData, channelId, guildId);
+      const envelope: EventEnvelope<typeof payload> = {
+        version: EVENT_VERSION,
+        idempotencyKey: `discord:deleted:${payload.externalId}:${payload.deletedAt}`,
+        projectId: options.projectId,
+        platform: "discord",
+        type: EventType.DISCORD_MESSAGE_DELETED,
+        ts: new Date().toISOString(),
+        source: {
+          guildId: payload.guildId ?? undefined,
+          channelId: payload.channelId,
+          threadId: payload.threadId ?? null
+        },
+        payload
+      };
+      await publisher.publish(envelope);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Failed to normalize or publish MessageDelete", err);
     }
   });
 

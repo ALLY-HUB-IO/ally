@@ -1,5 +1,5 @@
 import { Attachment, Guild, Message, MessageType, ThreadChannel, User, MessageReaction, Emoji } from "discord.js";
-import type { DiscordMessageCreated, DiscordMessageUpdated, DiscordReactionEvent } from "@ally/events/schemas";
+import type { DiscordMessageCreated, DiscordMessageUpdated, DiscordReactionEvent, DiscordMessageDeleted } from "@ally/events/schemas";
 
 function buildAuthor(user: User | null | undefined) {
   return {
@@ -98,6 +98,39 @@ export function normalizeReactionRemoved(reaction: MessageReaction, message: Mes
     messageContent: message.content ?? "",
     reactionCount: (reaction.count ?? 1) - 1, // Subtract 1 since reaction was removed
     createdAt: new Date().toISOString(),
+  };
+}
+
+export function normalizeMessageDeleted(message: Message | null, channelId: string, guildId?: string): DiscordMessageDeleted {
+  const deletedAt = new Date().toISOString();
+  
+  // If we have the full message object, extract available data
+  if (message) {
+    const guild: Guild | null = message.guild ?? null;
+    return {
+      externalId: message.id,
+      guildId: guild?.id ?? guildId ?? undefined,
+      channelId: message.channelId,
+      threadId: threadIdOf(message),
+      author: buildAuthor(message.author),
+      content: message.content ?? undefined,
+      deletedAt,
+      deletedBy: undefined, // Discord doesn't provide this info in delete events
+      reason: undefined, // Discord doesn't provide this info in delete events
+    };
+  }
+  
+  // If we only have partial message data (common for deletions)
+  return {
+    externalId: 'unknown', // We don't have the message ID in this case
+    guildId,
+    channelId,
+    threadId: undefined,
+    author: undefined,
+    content: undefined,
+    deletedAt,
+    deletedBy: undefined,
+    reason: undefined,
   };
 }
 

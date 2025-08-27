@@ -1,4 +1,4 @@
-import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved } from "../src/normalizers";
+import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved, normalizeMessageDeleted } from "../src/normalizers";
 
 // Minimal fakes for discord.js Message
 function fakeMessage(overrides: Partial<any> = {}) {
@@ -78,6 +78,28 @@ describe("normalizers", () => {
     const out = normalizeReactionRemoved(reaction as any, message as any);
     expect(out.reactionCount).toBe(3); // count - 1
     expect(out.emoji.name).toBe("👍");
+  });
+
+  test("normalizeMessageDeleted with full message data", () => {
+    const message = fakeMessage();
+    const out = normalizeMessageDeleted(message as any, "channel-123", "guild-456");
+    expect(out.externalId).toBe("123");
+    expect(out.channelId).toBe("channel-1"); // Uses message's channelId
+    expect(out.guildId).toBe("guild-1"); // Uses message's guildId
+    expect(out.author?.id).toBe("user-1");
+    expect(out.content).toBe("hello");
+    expect(out.deletedAt).toBeDefined();
+    expect(out.deletedBy).toBeUndefined();
+  });
+
+  test("normalizeMessageDeleted with partial message data", () => {
+    const out = normalizeMessageDeleted(null, "channel-123", "guild-456");
+    expect(out.externalId).toBe("unknown");
+    expect(out.channelId).toBe("channel-123");
+    expect(out.guildId).toBe("guild-456");
+    expect(out.author).toBeUndefined();
+    expect(out.content).toBeUndefined();
+    expect(out.deletedAt).toBeDefined();
   });
 });
 
