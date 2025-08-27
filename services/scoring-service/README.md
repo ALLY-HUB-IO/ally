@@ -57,23 +57,28 @@ POSTGRES_URL=postgresql://...
 
 ## Testing
 
-### Manual Test
+### Integration Test
 
-Run the manual test to verify worker functionality:
+Run the integration test to verify worker functionality:
 
 ```bash
 # Start Redis (if not running)
 docker run -d -p 6379:6379 redis:alpine
 
-# Run test
-node test-worker.js
+# Run integration test
+npm run test:integration
 ```
 
-### Unit Tests
+This test will:
+- Publish valid, unsupported, and malformed messages to the ingest stream
+- Wait for processing
+- Check DLQ for errors
+- Check scored stream for results
+- Display consumer group information
 
-```bash
-npm test
-```
+### Testing Strategy
+
+The service uses integration tests rather than unit tests to avoid complex Jest configuration with ES modules. The integration test provides comprehensive verification of the worker functionality.
 
 ## Consumer Group Details
 
