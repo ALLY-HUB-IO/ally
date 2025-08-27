@@ -1,4 +1,4 @@
-import { normalizeMessageCreated, normalizeMessageUpdated } from "../src/normalizers";
+import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved } from "../src/normalizers";
 
 // Minimal fakes for discord.js Message
 function fakeMessage(overrides: Partial<any> = {}) {
@@ -49,6 +49,35 @@ describe("normalizers", () => {
     const m = fakeMessage({ channel: { id: "thread-1", isThread: () => true } });
     const out = normalizeMessageCreated(m as any);
     expect(out.threadId).toBe("thread-1");
+  });
+
+  test("normalizeReactionAdded maps reaction fields", () => {
+    const message = fakeMessage();
+    const reaction = {
+      emoji: { id: "123", name: "👍", animated: false },
+      count: 5,
+      users: { cache: { first: () => ({ id: "user-2", username: "bob", bot: false }) } }
+    };
+    const out = normalizeReactionAdded(reaction as any, message as any);
+    expect(out.messageId).toBe("123");
+    expect(out.author.id).toBe("user-2");
+    expect(out.emoji.name).toBe("👍");
+    expect(out.emoji.id).toBe("123");
+    expect(out.reactionCount).toBe(5);
+    expect(out.messageAuthor.id).toBe("user-1");
+    expect(out.messageContent).toBe("hello");
+  });
+
+  test("normalizeReactionRemoved decrements reaction count", () => {
+    const message = fakeMessage();
+    const reaction = {
+      emoji: { id: "123", name: "👍", animated: false },
+      count: 4,
+      users: { cache: { first: () => ({ id: "user-2", username: "bob", bot: false }) } }
+    };
+    const out = normalizeReactionRemoved(reaction as any, message as any);
+    expect(out.reactionCount).toBe(3); // count - 1
+    expect(out.emoji.name).toBe("👍");
   });
 });
 

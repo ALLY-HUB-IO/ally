@@ -10,7 +10,8 @@
     "scripts": {
       "build": "yarn workspaces run build",
       "dev": "yarn workspaces run dev",
-      "tail-stream": "node tools/tail-stream.js"
+      "tail-stream": "node tools/tail-stream.js",
+      "tail-all-discord": "node tools/tail-all-discord.js"
     },
     "devDependencies": {
       "ioredis": "^5.4.1",

@@ -31,6 +31,8 @@ DISCORD_MIN_MESSAGE_LENGTH=1
 Events are published to Redis streams with keys like:
 - `ally:{PROJECT_ID}:platform.discord.message.created`
 - `ally:{PROJECT_ID}:platform.discord.message.updated`
+- `ally:{PROJECT_ID}:platform.discord.reaction.added`
+- `ally:{PROJECT_ID}:platform.discord.reaction.removed`
 
 Each stream entry contains:
 - `version`: Event schema version

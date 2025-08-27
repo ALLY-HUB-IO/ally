@@ -6,6 +6,10 @@ This directory contains command-line utilities for debugging and monitoring the 
 
 A CLI tool to tail Redis streams and display new events as they arrive. Useful for debugging ingestion and monitoring event flow.
 
+## tail-all-discord.js
+
+A CLI tool to follow ALL Discord events for a project simultaneously. Shows message creation, updates, and reaction events in one view.
+
 ### Usage
 
 ```bash
@@ -15,9 +19,13 @@ yarn tail-stream <streamKey>
 # Show last N entries before following
 yarn tail-stream <streamKey> <count>
 
+# Follow ALL Discord events for a project
+yarn tail-all-discord <projectId> [count]
+
 # Examples
 yarn tail-stream ally:my-project:platform.discord.message.created
 yarn tail-stream ally:my-project:platform.discord.message.created 5
+yarn tail-all-discord my-first-project 5
 ```
 
 ### Environment Variables
@@ -59,5 +67,7 @@ Common stream keys for Ally platform:
 
 - `ally:{PROJECT_ID}:platform.discord.message.created` - Discord message creation events
 - `ally:{PROJECT_ID}:platform.discord.message.updated` - Discord message update events
+- `ally:{PROJECT_ID}:platform.discord.reaction.added` - Discord reaction added events
+- `ally:{PROJECT_ID}:platform.discord.reaction.removed` - Discord reaction removed events
 
 Replace `{PROJECT_ID}` with your actual project ID (e.g., `my-first-project`).
