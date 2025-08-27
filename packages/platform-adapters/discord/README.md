@@ -82,6 +82,9 @@ startDiscordAdapter(
 - `projectId` (string): Project/tenant identifier added to event envelopes
 - `token` (string, optional): If omitted, `process.env.DISCORD_BOT_TOKEN` is used
 - `includeBots` (boolean, optional): When `true`, messages from bot users are included (default: `false`)
+- `allowedGuilds` (string[], optional): List of guild IDs to allow messages from (empty = all guilds)
+- `allowedChannels` (string[], optional): List of channel IDs to allow messages from (empty = all channels)
+- `minMessageLength` (number, optional): Minimum message length to process (default: 1)
 
 ## Events and schemas
 
