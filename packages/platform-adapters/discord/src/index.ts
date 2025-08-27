@@ -1,7 +1,7 @@
-import { Client, GatewayIntentBits, Partials, Message, Events } from "discord.js";
+import { Client, GatewayIntentBits, Partials, Message, Events, MessageReaction } from "discord.js";
 import { EventEnvelope } from "@ally/events/envelope";
 import { EventType, EVENT_VERSION } from "@ally/events/catalog";
-import { normalizeMessageCreated, normalizeMessageUpdated } from "./normalizers.js";
+import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved } from "./normalizers.js";
 
 export type Publisher = {
   publish: <T>(event: EventEnvelope<T>) => Promise<void>;
@@ -82,6 +82,60 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("Failed to normalize or publish MessageUpdate", err);
+    }
+  });
+
+  client.on(Events.MessageReactionAdd, async (reaction, user) => {
+    if (!options.includeBots && user.bot) return;
+    try {
+      const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
+      const fullReaction = reaction.partial ? await reaction.fetch() : reaction;
+      const payload = normalizeReactionAdded(fullReaction, message);
+      const envelope: EventEnvelope<typeof payload> = {
+        version: EVENT_VERSION,
+        idempotencyKey: `discord:reaction:added:${payload.externalId}:${payload.createdAt}`,
+        projectId: options.projectId,
+        platform: "discord",
+        type: EventType.DISCORD_REACTION_ADDED,
+        ts: new Date().toISOString(),
+        source: {
+          guildId: payload.guildId ?? undefined,
+          channelId: payload.channelId,
+          threadId: payload.threadId ?? null
+        },
+        payload
+      };
+      await publisher.publish(envelope);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Failed to normalize or publish MessageReactionAdd", err);
+    }
+  });
+
+  client.on(Events.MessageReactionRemove, async (reaction, user) => {
+    if (!options.includeBots && user.bot) return;
+    try {
+      const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
+      const fullReaction = reaction.partial ? await reaction.fetch() : reaction;
+      const payload = normalizeReactionRemoved(fullReaction, message);
+      const envelope: EventEnvelope<typeof payload> = {
+        version: EVENT_VERSION,
+        idempotencyKey: `discord:reaction:removed:${payload.externalId}:${payload.createdAt}`,
+        projectId: options.projectId,
+        platform: "discord",
+        type: EventType.DISCORD_REACTION_REMOVED,
+        ts: new Date().toISOString(),
+        source: {
+          guildId: payload.guildId ?? undefined,
+          channelId: payload.channelId,
+          threadId: payload.threadId ?? null
+        },
+        payload
+      };
+      await publisher.publish(envelope);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("Failed to normalize or publish MessageReactionRemove", err);
     }
   });
 
