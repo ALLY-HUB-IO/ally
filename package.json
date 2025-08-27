@@ -9,6 +9,12 @@
     ],
     "scripts": {
       "build": "yarn workspaces run build",
-      "dev": "yarn workspaces run dev"
+      "dev": "yarn workspaces run dev",
+      "tail-stream": "node tools/tail-stream.js"
+    },
+    "devDependencies": {
+      "ioredis": "^5.4.1",
+      "ts-node": "^10.9.2",
+      "typescript": "^5.5.4"
     }
   }

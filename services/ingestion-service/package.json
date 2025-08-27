@@ -13,9 +13,11 @@
     "@ally/platform-adapter-discord": "*",
     "@ally/events": "*",
     "dotenv": "^16.4.5",
+    "express": "^4.19.2",
     "ioredis": "^5.4.1"
   },
   "devDependencies": {
+    "@types/express": "^4.17.21",
     "@types/node": "^20.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"

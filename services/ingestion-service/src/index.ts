@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import express, { Request, Response } from 'express';
 import { Redis } from 'ioredis';
 import { startDiscordAdapter, type Publisher } from '@ally/platform-adapter-discord';
 import type { EventEnvelope } from '@ally/events/envelope';
@@ -22,6 +23,10 @@ if (!DISCORD_BOT_TOKEN) {
 }
 
 const redis = new Redis(REDIS_URL);
+const app = express();
+app.use(express.json());
+
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8082;
 
 // Stats tracking
 let stats = {
@@ -31,6 +36,9 @@ let stats = {
   errors: 0,
   startTime: new Date()
 };
+
+// Discord client reference for health checks
+let discordClient: any = null;
 
 // Build Redis stream key
 function buildStreamKey(eventType: string): string {
@@ -123,10 +131,46 @@ async function healthCheck(): Promise<boolean> {
   }
 }
 
+// Health endpoint
+app.get('/health', async (_req: Request, res: Response) => {
+  try {
+    const redisHealthy = await healthCheck();
+    const discordReady = discordClient?.readyAt ? true : false;
+    
+    if (redisHealthy && discordReady) {
+      res.json({ 
+        ok: true, 
+        redis: 'connected',
+        discord: 'ready',
+        stats: {
+          messagesReceived: stats.messagesReceived,
+          messagesPublished: stats.messagesPublished,
+          messagesFiltered: stats.messagesFiltered,
+          errors: stats.errors,
+          uptime: Math.floor((Date.now() - stats.startTime.getTime()) / 1000)
+        }
+      });
+    } else {
+      res.status(503).json({ 
+        ok: false, 
+        redis: redisHealthy ? 'connected' : 'disconnected',
+        discord: discordReady ? 'ready' : 'not ready'
+      });
+    }
+  } catch (err) {
+    res.status(500).json({ ok: false, error: (err as Error).message });
+  }
+});
+
 // Graceful shutdown
 async function shutdown() {
   console.log('[ingestion-service] Shutting down...');
   console.log(`[ingestion-service] Final stats: received=${stats.messagesReceived}, published=${stats.messagesPublished}, filtered=${stats.messagesFiltered}, errors=${stats.errors}`);
+  
+  if (discordClient) {
+    await discordClient.destroy();
+  }
+  
   await redis.quit();
   process.exit(0);
 }
@@ -152,7 +196,7 @@ async function start() {
   
   try {
     // Start Discord adapter
-    const client = startDiscordAdapter(
+    discordClient = startDiscordAdapter(
       {
         projectId: PROJECT_ID,
         token: DISCORD_BOT_TOKEN,
@@ -162,6 +206,14 @@ async function start() {
     );
     
     console.log('[ingestion-service] Discord adapter started successfully');
+    
+    // Start Express server
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[ingestion-service] HTTP server listening on port ${PORT}`);
+    }).on('error', (error) => {
+      console.error(`[ingestion-service] Failed to start HTTP server on port ${PORT}:`, error);
+      process.exit(1);
+    });
     
     // Log stats periodically
     setInterval(() => {
