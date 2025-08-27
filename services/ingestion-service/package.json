@@ -1,0 +1,23 @@
+{
+  "name": "ingestion-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node --esm src/index.ts",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@ally/platform-adapter-discord": "*",
+    "@ally/events": "*",
+    "dotenv": "^16.4.5",
+    "ioredis": "^5.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
