@@ -42,6 +42,9 @@ function formatEvent(streamKey, entry) {
     case 'updated':
       colorPrefix = '✏️';
       break;
+    case 'deleted':
+      colorPrefix = '🗑️';
+      break;
     case 'added':
       colorPrefix = '➕';
       break;
@@ -70,6 +73,7 @@ async function tailAllDiscordEvents(projectId, count = 5) {
     const streamKeys = [
       `ally:${projectId}:platform.discord.message.created`,
       `ally:${projectId}:platform.discord.message.updated`,
+      `ally:${projectId}:platform.discord.message.deleted`,
       `ally:${projectId}:platform.discord.reaction.added`,
       `ally:${projectId}:platform.discord.reaction.removed`
     ];
@@ -146,10 +150,11 @@ if (!projectId) {
   console.log('  node tools/tail-all-discord.js my-first-project 10');
   console.log('');
   console.log('This will follow all Discord events:');
-  console.log('  - Message created events');
-  console.log('  - Message updated events');
-  console.log('  - Reaction added events');
-  console.log('  - Reaction removed events');
+console.log('  - Message created events');
+console.log('  - Message updated events');
+console.log('  - Message deleted events');
+console.log('  - Reaction added events');
+console.log('  - Reaction removed events');
   console.log('');
   console.log('Environment:');
   console.log('  REDIS_URL - Redis connection string (default: redis://localhost:6379)');
