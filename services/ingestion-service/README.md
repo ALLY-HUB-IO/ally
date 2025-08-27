@@ -83,4 +83,27 @@ docker compose up ingestion-service
 
 ## Health Monitoring
 
+The service provides a health endpoint at `GET /health` that returns:
+
+```json
+{
+  "ok": true,
+  "redis": "connected",
+  "discord": "ready",
+  "stats": {
+    "messagesReceived": 42,
+    "messagesPublished": 40,
+    "messagesFiltered": 2,
+    "errors": 0,
+    "uptime": 120
+  }
+}
+```
+
+- **200 OK**: Service is healthy (Redis connected, Discord ready)
+- **503 Service Unavailable**: Service is unhealthy (Redis disconnected or Discord not ready)
+- **500 Internal Server Error**: Health check failed
+
+The health endpoint is available on port 8082 when running with Docker Compose.
+
 The service performs health checks on startup and logs Redis connection status. Failed Redis connections will cause the service to exit.
