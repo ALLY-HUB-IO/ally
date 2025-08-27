@@ -6,9 +6,10 @@ Discord ingestion adapter that connects a Discord bot (discord.js v14) and publi
 
 - Connects to Discord using `DISCORD_BOT_TOKEN` (or an explicit token)
 - Subscribes to message create/update events with the required gateway intents
-- Normalizes raw Discord messages into `@ally/events` schemas:
+- Normalizes raw Discord messages and reactions into `@ally/events` schemas:
   - `DiscordMessageCreated`
   - `DiscordMessageUpdated`
+  - `DiscordReactionEvent` (for both added and removed reactions)
 - Emits event envelopes using your provided `Publisher`
 - Contains no scoring/business logic
 
@@ -90,8 +91,9 @@ startDiscordAdapter(
 
 Normalized payloads conform to `@ally/events`:
 
-- `DiscordMessageCreated`
-- `DiscordMessageUpdated`
+- `DiscordMessageCreated` - New messages
+- `DiscordMessageUpdated` - Edited messages  
+- `DiscordReactionEvent` - Reaction added/removed events
 
 The adapter wraps these payloads in an envelope containing:
 
@@ -126,5 +128,5 @@ Make sure these intents are enabled for your bot in the Discord Developer Portal
 
 ## Notes
 
-- The adapter only publishes message create/update events for now. Reactions can be added later.
+- The adapter publishes message create/update events and reaction add/remove events.
 - No persistence or business/scoring logic is included here.

@@ -59,5 +59,7 @@ Common stream keys for Ally platform:
 
 - `ally:{PROJECT_ID}:platform.discord.message.created` - Discord message creation events
 - `ally:{PROJECT_ID}:platform.discord.message.updated` - Discord message update events
+- `ally:{PROJECT_ID}:platform.discord.reaction.added` - Discord reaction added events
+- `ally:{PROJECT_ID}:platform.discord.reaction.removed` - Discord reaction removed events
 
 Replace `{PROJECT_ID}` with your actual project ID (e.g., `my-first-project`).
