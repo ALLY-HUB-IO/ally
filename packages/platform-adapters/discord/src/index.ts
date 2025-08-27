@@ -11,6 +11,9 @@ export type DiscordAdapterOptions = {
   projectId: string;
   token?: string; // optional override; falls back to env
   includeBots?: boolean; // default false
+  allowedGuilds?: string[]; // optional guild allowlist
+  allowedChannels?: string[]; // optional channel allowlist
+  minMessageLength?: number; // minimum message length to process
 };
 
 export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: Publisher) {
@@ -37,7 +40,7 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
       const payload = normalizeMessageCreated(message);
       const envelope: EventEnvelope<typeof payload> = {
         version: EVENT_VERSION,
-        idempotencyKey: `discord:${payload.externalId}:created`,
+        idempotencyKey: `discord:created:${payload.externalId}:${payload.createdAt}`,
         projectId: options.projectId,
         platform: "discord",
         type: EventType.DISCORD_MESSAGE_CREATED,
@@ -63,7 +66,7 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
       const payload = normalizeMessageUpdated(message);
       const envelope: EventEnvelope<typeof payload> = {
         version: EVENT_VERSION,
-        idempotencyKey: `discord:${payload.externalId}:updated:${payload.editedAt}`,
+        idempotencyKey: `discord:updated:${payload.externalId}:${payload.editedAt}`,
         projectId: options.projectId,
         platform: "discord",
         type: EventType.DISCORD_MESSAGE_UPDATED,
