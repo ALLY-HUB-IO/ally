@@ -4,32 +4,59 @@ import { randomUUID } from 'crypto';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { getEdgeCloud } from '@ally/intelligence-edgecloud';
+import { ScoringWorker } from './worker.js';
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8081;
 const POSTGRES_URL = process.env.POSTGRES_URL;
 const REDIS_URL = process.env.REDIS_URL;
 const TEC_CHAT_ID = process.env.TEC_CHAT_ID || 'default-project';
+const PROJECT_ID = process.env.PROJECT_ID || 'default-project';
 
 const pg = POSTGRES_URL ? new Pool({ connectionString: POSTGRES_URL }) : null;
 const redis = REDIS_URL ? new Redis(REDIS_URL) : null;
 const app = express();
 app.use(express.json());
 
-// simple worker loop stub (replace with your real consumer)
+let worker: ScoringWorker | null = null;
+
+// Start the scoring worker
 async function startWorker() {
-  const ec = getEdgeCloud();
-  console.log('[worker] starting…');
   if (!REDIS_URL) {
     console.warn('[worker] REDIS_URL not set; redis features disabled');
+    return;
   }
-  // example: on boot, ping TEC once so we notice misconfig early
+
+  if (!redis) {
+    console.warn('[worker] Redis client not available');
+    return;
+  }
+
+  // Test TEC connection on startup
+  const ec = getEdgeCloud();
   try {
     const res = await ec.ragChat({ projectId: TEC_CHAT_ID, messages: [{ role: 'user', content: 'ping' }] });
     console.log('[worker] TEC ok:', !!res.content);
   } catch (e) {
     console.warn('[worker] TEC check failed:', (e as Error).message);
   }
-  // TODO: subscribe to your queue / stream and score messages
+
+  // Start the scoring worker
+  worker = new ScoringWorker({
+    redis: redis as any,
+    projectId: PROJECT_ID,
+    platform: 'discord',
+    consumerGroup: `cg:scoring:v1:${PROJECT_ID}`,
+    consumerName: `scoring-${process.pid}`,
+    count: 50,
+    blockMs: 5000,
+  });
+
+  try {
+    await worker.start();
+  } catch (error) {
+    console.error('[worker] Failed to start worker:', error);
+    throw error;
+  }
 }
 
 type ScoreJobStatus = 'queued' | 'processing' | 'done' | 'error';
@@ -144,9 +171,40 @@ app.get('/health', async (_req: Request, res: Response) => {
   }
 });
 
-app.listen(PORT, async () => {
+// GET /stats — worker statistics
+app.get('/stats', (_req: Request, res: Response) => {
+  if (!worker) {
+    return res.status(503).json({ error: 'Worker not started' });
+  }
+  res.json({ ok: true, stats: worker.getStats() });
+});
+
+const server = app.listen(PORT, async () => {
   console.log(`[scoring-service] up on :${PORT}`);
   await startWorker();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('[scoring-service] Received SIGTERM, shutting down gracefully...');
+  if (worker) {
+    await worker.stop();
+  }
+  server.close(() => {
+    console.log('[scoring-service] Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', async () => {
+  console.log('[scoring-service] Received SIGINT, shutting down gracefully...');
+  if (worker) {
+    await worker.stop();
+  }
+  server.close(() => {
+    console.log('[scoring-service] Server closed');
+    process.exit(0);
+  });
 });
 
 

@@ -1,176 +1,124 @@
-Scoring Service
+# Scoring Service
 
-Synchronous and asynchronous scoring API that evaluates messages using Theta EdgeCloud via `@ally/intelligence-edgecloud`.
+The scoring service processes events from the ingest stream and applies scoring algorithms to messages.
 
-- Default port: `8081`
-- ESM Node 20 runtime (Docker)
-- Redis and Postgres are optional; current build runs without them
+## Features
 
-Environment variables
+- **Redis Stream Consumer**: Consumes events from `ally:events:ingest:v1:<projectId>:discord`
+- **Event Routing**: Routes events by type (currently processes `platform.discord.message.created`)
+- **Scoring Orchestration**: Uses the scoring orchestrator to compute multi-factor scores
+- **Error Handling**: Sends failed messages to DLQ with error details
+- **Statistics**: Provides real-time processing statistics via `/stats` endpoint
+- **Graceful Shutdown**: Handles SIGTERM/SIGINT for clean shutdown
 
-Configure via `infra/.env` (see `infra/example.env`):
+## Architecture
 
-- `PORT` (default `8081`)
-- `TEC_RAG_BASE_URL` (e.g., `https://your-edgecloud-gateway/api`)
-- `TEC_RAG_API_KEY` (Bearer token for EdgeCloud)
-- `TEC_CHAT_ID` (default chat/project identifier)
-- `REDIS_URL` (optional; if omitted, Redis features are disabled)
-- `POSTGRES_URL` (optional; not required yet)
+### Worker Implementation
 
-Run locally (workspace)
+The `ScoringWorker` class in `src/worker.ts` implements:
 
-```bash
-# from repo root
-# YARN_IGNORE_ENGINES=1 yarn install
-yarn workspace @ally/intelligence-edgecloud build
-yarn workspace scoring-service dev
-# Service listens on http://localhost:8081
+1. **Consumer Group Management**: Creates consumer group if missing
+2. **Message Processing**: Parses event envelopes and routes by type
+3. **Scoring**: Calls the scoring orchestrator for multi-factor analysis
+4. **Error Recovery**: Sends failed messages to DLQ
+5. **Statistics Tracking**: Monitors processing metrics
+
+### Event Flow
+
+```
+Ingest Stream → Consumer Group → Worker → Scoring Orchestrator → (Future: DB + Scored Stream)
+                ↓
+              DLQ (on error)
 ```
 
-Run with Docker Compose
+## Configuration
 
-```bash
-cp infra/example.env infra/.env   # adjust TEC_* values
-cd infra
-# bring up redis + scoring-service
-docker compose up --build
+Set these environment variables:
+
+```env
+# Required
+REDIS_URL=redis://redis:6379
+PROJECT_ID=your-project-id
+
+# Optional
+PORT=8081
+TEC_CHAT_ID=default-project
+POSTGRES_URL=postgresql://...
 ```
 
-Health check: GET http://localhost:8081/health
+## API Endpoints
 
-API
+- `GET /health` - Health check
+- `GET /stats` - Worker statistics
+- `POST /v1/score` - Synchronous scoring
+- `POST /v1/score-jobs` - Asynchronous scoring jobs
+- `GET /v1/score-jobs/:id` - Job status
+- `POST /v1/rescore/:messageId` - Force rescore
 
-POST /v1/score
+## Testing
 
-Synchronous scoring. Returns a score immediately after calling EdgeCloud.
+### Manual Test
 
-Request
+Run the manual test to verify worker functionality:
+
+```bash
+# Start Redis (if not running)
+docker run -d -p 6379:6379 redis:alpine
+
+# Run test
+node test-worker.js
+```
+
+### Unit Tests
+
+```bash
+npm test
+```
+
+## Consumer Group Details
+
+- **Group Name**: `cg:scoring:v1:<projectId>`
+- **Consumer Name**: `scoring-<process.pid>`
+- **Stream**: `ally:events:ingest:v1:<projectId>:discord`
+- **Batch Size**: 50 messages
+- **Block Time**: 5000ms
+
+## DLQ Structure
+
+Failed messages are sent to `ally:events:dlq:v1:<projectId>` with:
 
 ```json
 {
-  "message": { "id": "m1", "text": "Great work on the launch!" },
-  "projectId": "optional-override-of-TEC_CHAT_ID"
+  "error": "Error message",
+  "raw": "Original message fields",
+  "timestamp": "2024-01-01T00:00:00.000Z",
+  "streamId": "message-id",
+  "streamKey": "source-stream",
+  "consumerGroup": "cg:scoring:v1:project",
+  "consumerName": "scoring-123"
 }
 ```
 
-Response
+## Statistics
+
+The `/stats` endpoint returns:
 
 ```json
 {
-  "ok": true,
-  "result": {
-    "messageId": "m1",
-    "projectId": "theta-kb-01",
-    "score": 0.86,
-    "sentiment": "positive",
-    "rationale": "...",
-    "sources": [
-      { "url": "https://...", "snippet": "..." }
-    ]
-  }
+  "messagesReceived": 100,
+  "messagesProcessed": 95,
+  "messagesFailed": 3,
+  "messagesIgnored": 2,
+  "lastProcessedAt": "2024-01-01T00:00:00.000Z"
 }
 ```
 
-Example
+## Future Enhancements
 
-```bash
-curl -s -X POST http://localhost:8081/v1/score \
-  -H 'content-type: application/json' \
-  -d '{"message":{"id":"m1","text":"Great work on the launch!"}}'
-```
-
-POST /v1/score-jobs
-
-Create an asynchronous scoring job. Returns jobId and processes in the background.
-
-Request
-
-```json
-{
-  "message": { "id": "m2", "text": "This is mid." },
-  "projectId": "optional-override"
-}
-```
-
-Response
-
-```json
-{ "ok": true, "jobId": "4a8a..." }
-```
-
-Example
-
-```bash
-curl -s -X POST http://localhost:8081/v1/score-jobs \
-  -H 'content-type: application/json' \
-  -d '{"message":{"id":"m2","text":"This is mid."}}'
-```
-
-GET /v1/score-jobs/:id
-
-Fetch job status or result.
-
-Response
-
-```json
-{
-  "ok": true,
-  "job": {
-    "id": "4a8a...",
-    "status": "queued|processing|done|error",
-    "result": { "messageId": "m2", "projectId": "...", "score": 0.5, "sentiment": "neutral", "rationale": "...", "sources": [] },
-    "error": "optional error message"
-  }
-}
-```
-
-Example
-
-```bash
-curl -s http://localhost:8081/v1/score-jobs/<jobId>
-```
-
-POST /v1/rescore/:messageId
-
-Force recomputation for an existing message (e.g., after reactions). Uses the provided text and optional projectId.
-
-Request
-
-```json
-{ "text": "Updated content after reactions", "projectId": "optional-override" }
-```
-
-Response
-
-```json
-{ "ok": true, "jobId": "c2bf..." }
-```
-
-Example
-
-```bash
-curl -s -X POST http://localhost:8081/v1/rescore/m2 \
-  -H 'content-type: application/json' \
-  -d '{"text":"Updated content after reactions"}'
-```
-
-GET /health
-
-Basic health probe.
-
-- 200: { "ok": true }
-- 500: { "ok": false, "error": "..." }
-
-Scoring behavior
-
-- Uses Theta EdgeCloud RAG chat (`/chatbot/{projectId}/chat/completions`) via `@ally/intelligence-edgecloud`.
-- Sends a system prompt that asks the model to return strict JSON with { score, sentiment, rationale }.
-- Attempts to parse JSON from the model output; falls back to defaults if parsing fails.
-- Replace the in-memory jobs with Redis/queues and add persistence when needed.
-
-Notes
-
-- `TEC_CHAT_ID` is used as default projectId if not provided per request.
-- Redis and Postgres are optional; health checks skip them if env vars are not set.
+- Database persistence (step 10)
+- Scored stream publishing (step 11)
+- Support for more event types
+- Metrics and monitoring
+- Horizontal scaling with multiple consumers
 
 
