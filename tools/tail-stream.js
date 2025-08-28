@@ -99,8 +99,8 @@ if (!streamKey) {
   console.log('Usage: node tools/tail-stream.js <streamKey> [count]');
   console.log('');
   console.log('Examples:');
-  console.log('  node tools/tail-stream.js ally:my-project:platform.discord.message.created');
-  console.log('  node tools/tail-stream.js ally:my-project:platform.discord.message.created 5');
+  console.log('  node tools/tail-stream.js ally:my-first-project:platform.discord.message.created');
+  console.log('  node tools/tail-stream.js ally:my-first-project:platform.discord.message.created 5');
   console.log('');
   console.log('Environment:');
   console.log('  REDIS_URL - Redis connection string (default: redis://localhost:6379)');

@@ -34,10 +34,10 @@ Options:
   --help                    Show this help message
 
 Examples:
-  node tools/requeue-dlq.ts my-project --dry-run
-  node tools/requeue-dlq.ts my-project --entry-id 1234567890-0
-  node tools/requeue-dlq.ts my-project --error-pattern "content is required"
-  node tools/requeue-dlq.ts my-project --limit 5 --dry-run
+  node tools/requeue-dlq.ts my-first-project --dry-run
+  node tools/requeue-dlq.ts my-first-project --entry-id 1234567890-0
+  node tools/requeue-dlq.ts my-first-project --error-pattern "content is required"
+  node tools/requeue-dlq.ts my-first-project --limit 5 --dry-run
     `);
         process.exit(0);
     }

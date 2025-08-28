@@ -29,6 +29,7 @@ export interface ScoringRequest {
   projectId: string; // For EdgeCloud RAG
   context?: {
     userId?: string;
+    authorId?: string;
     messageId?: string;
     timestamp?: string;
   };
@@ -39,6 +40,7 @@ export interface ScoringWeights {
   sentiment: number; // Weight for sentiment score
   value: number; // Weight for value score
   uniqueness: number; // Weight for uniqueness score
+  intelligence: number; // Weight for intelligence service score
 }
 
 export interface ScoringConfig {
@@ -97,6 +99,12 @@ export interface CombinedScoringResult {
       weightedScore: number;
       maxCosine: number;
     };
+    intelligence: {
+      score: number;
+      weight: number;
+      weightedScore: number;
+      rationale: string;
+    };
   };
   metadata: {
     processingTimeMs: number;
@@ -104,13 +112,28 @@ export interface CombinedScoringResult {
     models: {
       sentiment: string;
       value: string;
+      intelligence: string;
     };
   };
   rawResponses: {
     sentiment: SentimentResponse;
     value: RagChatResponse;
     uniqueness: UniquenessScoreMetrics;
+    intelligence: IntelligenceAnalysis;
   };
+}
+
+// Intelligence service interfaces
+export interface IntelligenceService {
+  analyze(content: string, author?: string, context?: Record<string, any>): Promise<IntelligenceAnalysis>;
+}
+
+export interface IntelligenceAnalysis {
+  score: number; // 0-1 score
+  rationale: string;
+  sentiment: string;
+  entities: SentimentEntity[];
+  model: Record<string, string>;
 }
 
 // Service interfaces

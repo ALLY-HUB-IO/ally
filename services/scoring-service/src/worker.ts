@@ -3,6 +3,7 @@ import {
   xreadGroupLoop, 
   ingestStreamKey, 
   dlqStreamKey, 
+  scoredStreamKey,
   xaddObj,
   type RedisLike 
 } from '@ally/events/streams';
@@ -162,6 +163,7 @@ export class ScoringWorker {
       projectId: envelope.projectId,
       context: {
         messageId: payload.externalId,
+        authorId: payload.author?.id,
         timestamp: envelope.ts,
       },
     });
@@ -176,10 +178,39 @@ export class ScoringWorker {
       payload.author?.id || null,
       payload.content,
       result.finalScore,
-      `Score: ${result.finalScore.toFixed(3)}, Sentiment: ${result.breakdown.sentiment.label}, Processing time: ${result.metadata.processingTimeMs}ms`
+      `Score: ${result.finalScore.toFixed(3)}, Sentiment: ${result.breakdown.sentiment.label}, Intelligence: ${result.breakdown.intelligence.rationale}, Processing time: ${result.metadata.processingTimeMs}ms`
     );
 
-    // TODO: Publish to scored stream (step 11)
+    // Publish scored event to scored stream
+    const scoredStream = scoredStreamKey(envelope.projectId);
+    const scoredEvent = {
+      version: 'v1',
+      idempotencyKey: `scored-${envelope.idempotencyKey}`,
+      projectId: envelope.projectId,
+      platform: envelope.platform,
+      type: 'platform.scored.message',
+      ts: new Date().toISOString(),
+      source: JSON.stringify({
+        originalEventId: envelope.idempotencyKey,
+        originalType: envelope.type,
+        scoringService: 'scoring-service',
+      }),
+      payload: JSON.stringify({
+        externalId: payload.externalId,
+        authorId: payload.author?.id,
+        content: payload.content,
+        score: result.finalScore,
+        breakdown: result.breakdown,
+        metadata: result.metadata,
+        originalEvent: envelope,
+      }),
+    };
+
+    await xaddObj(this.config.redis, scoredStream, scoredEvent, {
+      maxLen: { strategy: 'approx', count: 10000 }
+    });
+
+    console.log(`[worker] Published scored event to ${scoredStream}: ${result.finalScore.toFixed(3)}`);
   }
 
   private async acknowledgeMessage(streamKey: string, id: string): Promise<void> {

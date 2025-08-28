@@ -29,7 +29,7 @@ const orchestrator = createScoreOrchestrator();
 // Score a message
 const result = await orchestrator.score({
   text: "Theta blockchain technology is revolutionary!",
-  projectId: "my-project-id"
+  projectId: "my-first-project-id"
 });
 
 console.log(`Final Score: ${result.finalScore}`);
