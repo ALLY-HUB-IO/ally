@@ -10,6 +10,40 @@ A CLI tool to tail Redis streams and display new events as they arrive. Useful f
 
 A CLI tool to follow ALL Discord events for a project simultaneously. Shows message creation, updates, and reaction events in one view.
 
+## requeue-dlq.ts
+
+A CLI tool to move selected entries from the DLQ back to their original stream for reprocessing. Useful for recovering from transient errors or reprocessing messages after fixes.
+
+### Usage
+
+```bash
+# Show help
+node tools/requeue-dlq.ts --help
+
+# Dry run - see what would be requeued
+node tools/requeue-dlq.ts my-project --dry-run
+
+# Requeue specific entry by ID
+node tools/requeue-dlq.ts my-project --entry-id 1234567890-0
+
+# Requeue entries matching error pattern
+node tools/requeue-dlq.ts my-project --error-pattern "content is required"
+
+# Requeue all entries (use with caution)
+node tools/requeue-dlq.ts my-project --all
+
+# Limit number of entries to process
+node tools/requeue-dlq.ts my-project --limit 5 --dry-run
+```
+
+### Features
+
+- **Selective Requeuing**: Requeue by entry ID, error pattern, or all entries
+- **Dry Run Mode**: Preview what would be requeued without making changes
+- **Safety Checks**: Validates DLQ entries before processing
+- **Atomic Operations**: Removes from DLQ only after successful requeue
+- **Comprehensive Logging**: Shows detailed progress and results
+
 ### Usage
 
 ```bash
