@@ -72,7 +72,8 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
     const weightedUniqueness = uniquenessScore * config.weights.uniqueness;
 
     // Final combined score and normalize to 0-1
-    const finalScore = (weightedSentiment + weightedValue + weightedUniqueness) / (config.weights.sentiment + config.weights.value + config.weights.uniqueness);
+    const totalWeight = config.weights.sentiment + config.weights.value + config.weights.uniqueness;
+    const finalScore = (weightedSentiment + weightedValue + weightedUniqueness) / totalWeight;
 
     const processingTime = Date.now() - startTime;
 

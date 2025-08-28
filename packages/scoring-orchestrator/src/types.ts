@@ -29,6 +29,7 @@ export interface ScoringRequest {
   projectId: string; // For EdgeCloud RAG
   context?: {
     userId?: string;
+    authorId?: string;
     messageId?: string;
     timestamp?: string;
   };
@@ -112,6 +113,8 @@ export interface CombinedScoringResult {
     uniqueness: UniquenessScoreMetrics;
   };
 }
+
+
 
 // Service interfaces
 export interface SentimentService {

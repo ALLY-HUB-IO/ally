@@ -21,19 +21,19 @@ A CLI tool to move selected entries from the DLQ back to their original stream f
 node tools/requeue-dlq.ts --help
 
 # Dry run - see what would be requeued
-node tools/requeue-dlq.ts my-project --dry-run
+node tools/requeue-dlq.ts my-first-project --dry-run
 
 # Requeue specific entry by ID
-node tools/requeue-dlq.ts my-project --entry-id 1234567890-0
+node tools/requeue-dlq.ts my-first-project --entry-id 1234567890-0
 
 # Requeue entries matching error pattern
-node tools/requeue-dlq.ts my-project --error-pattern "content is required"
+node tools/requeue-dlq.ts my-first-project --error-pattern "content is required"
 
 # Requeue all entries (use with caution)
-node tools/requeue-dlq.ts my-project --all
+node tools/requeue-dlq.ts my-first-project --all
 
 # Limit number of entries to process
-node tools/requeue-dlq.ts my-project --limit 5 --dry-run
+node tools/requeue-dlq.ts my-first-project --limit 5 --dry-run
 ```
 
 ### Features
@@ -57,8 +57,8 @@ yarn tail-stream <streamKey> <count>
 yarn tail-all-discord <projectId> [count]
 
 # Examples
-yarn tail-stream ally:my-project:platform.discord.message.created
-yarn tail-stream ally:my-project:platform.discord.message.created 5
+yarn tail-stream ally:my-first-project:platform.discord.message.created
+yarn tail-stream ally:my-first-project:platform.discord.message.created 5
 yarn tail-all-discord my-first-project 5
 ```
 
