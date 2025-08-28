@@ -8,17 +8,14 @@ import {
   ScoringConfig,
   PartialScoringConfig,
   SentimentService,
-  IntelligenceService,
   RagScoreMetrics
 } from "./types.js";
 import { HttpSentimentClient } from "./sentiment-client.js";
-import { HttpIntelligenceClient } from "./intelligence-client.js";
 import { ConfigManager } from "./config.js";
 
 export class AllyScoreOrchestrator implements ScoringOrchestrator {
   private configManager: ConfigManager;
   private sentimentService: SentimentService;
-  private intelligenceService: IntelligenceService;
   private uniqueness: Promise<any>;
   constructor(config?: PartialScoringConfig) {
     this.configManager = config ? new ConfigManager(config) : ConfigManager.fromEnvironment();
@@ -26,11 +23,6 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
     const currentConfig = this.configManager.getConfig();
     this.sentimentService = new HttpSentimentClient({
       baseUrl: currentConfig.sentimentServiceUrl,
-      timeoutMs: 10_000,
-    });
-
-    this.intelligenceService = new HttpIntelligenceClient({
-      baseUrl: currentConfig.sentimentServiceUrl, // Use same service for now
       timeoutMs: 10_000,
     });
 
@@ -42,7 +34,7 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
     const config = this.configManager.getConfig();
 
     // Execute initial API calls in parallel for better performance
-    const [sentimentResult, initialValueResp, uniquenessResult, intelligenceResult] = await Promise.all([
+    const [sentimentResult, initialValueResp, uniquenessResult] = await Promise.all([
       this.sentimentService.score(request.text),
       this.callRagChatServiceValueScore(request),
       (async () => {
@@ -50,11 +42,6 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
         const scope = { projectId: request.projectId, platform: "other", channelId: request.context?.messageId } as any;
         return scorer.score(request.text, scope);
       })(),
-      this.intelligenceService.analyze(
-        request.text,
-        request.context?.authorId,
-        request.context
-      ),
     ]);
 
     // Try to extract score from initial response; if invalid, retry with default (no context)
@@ -77,18 +64,16 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
     // Calculate individual scores
     const sentimentScore = this.calculateSentimentScore(sentimentResult);
     const valueScoreFinal = this.calculateValueScore(valueScore);
-    const intelligenceScore = intelligenceResult.score;
 
     // Calculate weighted scores
     const weightedSentiment = sentimentScore * config.weights.sentiment;
     const weightedValue = valueScoreFinal * config.weights.value;
     const uniquenessScore = uniquenessResult?.score ?? 0;
     const weightedUniqueness = uniquenessScore * config.weights.uniqueness;
-    const weightedIntelligence = intelligenceScore * config.weights.intelligence || 0;
 
     // Final combined score and normalize to 0-1
-    const totalWeight = config.weights.sentiment + config.weights.value + config.weights.uniqueness + (config.weights.intelligence || 0);
-    const finalScore = (weightedSentiment + weightedValue + weightedUniqueness + weightedIntelligence) / totalWeight;
+    const totalWeight = config.weights.sentiment + config.weights.value + config.weights.uniqueness;
+    const finalScore = (weightedSentiment + weightedValue + weightedUniqueness) / totalWeight;
 
     const processingTime = Date.now() - startTime;
 
@@ -112,12 +97,6 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
           weightedScore: weightedUniqueness,
           maxCosine: uniquenessResult?.maxCosine ?? 0,
         },
-        intelligence: {
-          score: intelligenceScore,
-          weight: config.weights.intelligence || 0,
-          weightedScore: weightedIntelligence,
-          rationale: intelligenceResult.rationale,
-        },
       },
       metadata: {
         processingTimeMs: processingTime,
@@ -125,7 +104,6 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
         models: {
           sentiment: sentimentResult.model.sentiment,
           value: chosenValueResp.model || "unknown",
-          intelligence: intelligenceResult.model.sentiment || "unknown",
         },
       },
       rawResponses: {
@@ -135,7 +113,6 @@ export class AllyScoreOrchestrator implements ScoringOrchestrator {
           score: uniquenessScore,
           maxCosine: uniquenessResult?.maxCosine ?? 0,
         },
-        intelligence: intelligenceResult,
       },
     };
   }

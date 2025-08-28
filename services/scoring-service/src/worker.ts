@@ -178,7 +178,7 @@ export class ScoringWorker {
       payload.author?.id || null,
       payload.content,
       result.finalScore,
-      `Score: ${result.finalScore.toFixed(3)}, Sentiment: ${result.breakdown.sentiment.label}, Intelligence: ${result.breakdown.intelligence.rationale}, Processing time: ${result.metadata.processingTimeMs}ms`
+      `Score: ${result.finalScore.toFixed(3)}, Sentiment: ${result.breakdown.sentiment.label}, Processing time: ${result.metadata.processingTimeMs}ms`
     );
 
     // Publish scored event to scored stream

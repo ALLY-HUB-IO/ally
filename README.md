@@ -10,7 +10,7 @@ ALLY-Hub is a mono-repo for a service-oriented platform that ingests social inte
 
 - A static marketing site (`apps/website`)
 - A TypeScript scoring service (`services/scoring-service`) with Redis event streaming
-- A Python FastAPI sentiment/NER service (`services/sentiment-service`) with intelligence analysis
+- A Python FastAPI sentiment/NER service (`services/sentiment-service`)
 - Shared TypeScript libraries in `packages/`
 - PostgreSQL database with Prisma ORM (`packages/db`)
 
@@ -33,12 +33,12 @@ ally/
 │   ├── events/                  # Redis event streaming utilities
 │   ├── intelligence/
 │   │   └── edgecloud/           # EdgeCloud RAG client (Theta provider)
-│   ├── scoring-orchestrator/    # Combines sentiment + value + intelligence scoring
+│   ├── scoring-orchestrator/    # Combines sentiment + value + uniqueness scoring
 │   ├── uniqueness/              # Content uniqueness scoring
 │   └── platform-adapters/       # Discord adapter
 ├── services/
 │   ├── scoring-service/         # Node/Express API with Redis event streaming
-│   └── sentiment-service/       # FastAPI service (sentiment + NER + intelligence)
+│   └── sentiment-service/       # FastAPI service (sentiment + NER)
 ├── infra/                       # docker-compose, env example and prompts file
 └── tools/                       # CLI tools for monitoring and testing
 ```
@@ -129,27 +129,23 @@ curl -s http://localhost:8082/health
 
 ## 🧪 Testing the System
 
-### 1. Test Intelligence Service
+### 1. Test Sentiment Service
 
 ```bash
-# Test the new /analyze endpoint
-curl -X POST http://localhost:8080/analyze \
+# Test the sentiment analysis endpoint
+curl -X POST http://localhost:8080/score \
   -H "Content-Type: application/json" \
-  -d '{
-    "content": "This is a great message about Theta Network!",
-    "author": "test-user",
-    "context": {"messageId": "test-123"}
-  }'
+  -d '{"text": "This is a great message about Theta Network!"}'
 ```
 
 Expected response:
 ```json
 {
-  "score": 0.6,
-  "rationale": "Positive sentiment (positive) with 1 entities identified. Key entities: Theta Network",
-  "sentiment": "positive",
-  "entities": [...],
-  "model": {...}
+  "label": "positive",
+  "score": 0.973,
+  "probs": {"negative": 0.013, "neutral": 0.0, "positive": 0.987},
+  "entities": [{"text": "Theta Network", "label": "ORG"}],
+  "model": {"sentiment": "BVK97/Discord-NFT-Sentiment", "ner": "en_core_web_sm"}
 }
 ```
 
@@ -299,8 +295,8 @@ POSTGRES_URL="postgresql://ally:secret@localhost:5432/allyhub" npx prisma studio
 - `packages/intelligence/edgecloud` — EdgeCloud RAG client with Theta provider
   - Build/tests: `yarn workspace @ally/intelligence-edgecloud build | test`
 
-- `packages/scoring-orchestrator` — SDK that combines sentiment, value, uniqueness, and intelligence scoring
-  - Weights: sentiment (30%), value (40%), uniqueness (10%), intelligence (20%)
+- `packages/scoring-orchestrator` — SDK that combines sentiment, value, and uniqueness scoring
+  - Weights: sentiment (40%), value (50%), uniqueness (10%)
   - See `packages/scoring-orchestrator/README.md` for API and examples
 
 - `packages/uniqueness` — Content uniqueness scoring with vector similarity
@@ -323,8 +319,8 @@ TODO:
 Each `services/<name>` folder has its own `Dockerfile`:
 
 - `services/sentiment-service` (FastAPI)
-  - Endpoints: `POST /score`, `POST /batch/score`, `POST /analyze`, `GET /healthz`, `GET /readyz`
-  - Intelligence analysis with sentiment and entity extraction
+  - Endpoints: `POST /score`, `POST /batch/score`, `GET /healthz`, `GET /readyz`
+  - Sentiment analysis with entity extraction
   - Config via `infra/.env` (e.g., `SENTIMENT_MODEL_ID`, `SPACY_MODEL`)
 
 - `services/scoring-service` (Node/Express)

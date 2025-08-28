@@ -25,17 +25,3 @@ class ScoreResponse(BaseModel):
     model: Dict[str, str]
 
 
-class AnalyzeRequest(BaseModel):
-    content: str = Field(..., description="Content to analyze")
-    author: Optional[str] = Field(None, description="Author identifier")
-    context: Optional[Dict[str, str]] = Field(None, description="Additional context")
-
-
-class AnalyzeResponse(BaseModel):
-    score: float = Field(..., description="Overall score between 0 and 1")
-    rationale: str = Field(..., description="Explanation of the score")
-    sentiment: str = Field(..., description="Sentiment label")
-    entities: List[Entity] = Field(default_factory=list, description="Named entities found")
-    model: Dict[str, str] = Field(..., description="Model information")
-
-

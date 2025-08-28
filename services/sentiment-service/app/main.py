@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .loaders import load_hf_sentiment, load_spacy, load_spacy_with_custom_entities
 from .inference import run_single, run_batch
-from .schemas import ScoreRequest, BatchScoreRequest, ScoreResponse, AnalyzeRequest, AnalyzeResponse
+from .schemas import ScoreRequest, BatchScoreRequest, ScoreResponse
 
 
 app = FastAPI(title="Ally Sentiment Service", version="0.1.0")
@@ -86,47 +86,5 @@ def batch_score(payload: BatchScoreRequest) -> List[ScoreResponse]:
             "ner": os.environ.get("SPACY_MODEL", "en_core_web_sm"),
         }
     return outputs
-
-
-@app.post("/analyze", response_model=AnalyzeResponse)
-def analyze(payload: AnalyzeRequest) -> AnalyzeResponse:
-    if sent_pipeline is None or ner_nlp is None:
-        raise HTTPException(status_code=503, detail="Models not loaded yet")
-
-    content = (payload.content or "").strip()
-    if not content:
-        raise HTTPException(status_code=400, detail="content is required")
-
-    # Run sentiment analysis
-    sentiment_result = run_single(sent_pipeline, ner_nlp, content)
-    
-    # Calculate overall score (normalize sentiment to 0-1 range)
-    sentiment_score = (sentiment_result["score"] + 1) / 2  # Convert from [-1, 1] to [0, 1]
-    
-    # Generate rationale based on sentiment and entities
-    entity_count = len(sentiment_result["entities"])
-    sentiment_label = sentiment_result["label"]
-    
-    if sentiment_score > 0.7:
-        rationale = f"Positive sentiment ({sentiment_label}) with {entity_count} entities identified"
-    elif sentiment_score < 0.3:
-        rationale = f"Negative sentiment ({sentiment_label}) with {entity_count} entities identified"
-    else:
-        rationale = f"Neutral sentiment ({sentiment_label}) with {entity_count} entities identified"
-    
-    if entity_count > 0:
-        entity_names = [e["text"] for e in sentiment_result["entities"][:3]]  # Top 3 entities
-        rationale += f". Key entities: {', '.join(entity_names)}"
-    
-    return AnalyzeResponse(
-        score=sentiment_score,
-        rationale=rationale,
-        sentiment=sentiment_label,
-        entities=sentiment_result["entities"],
-        model={
-            "sentiment": os.environ.get("SENTIMENT_MODEL_ID", ""),
-            "ner": os.environ.get("SPACY_MODEL", "en_core_web_sm"),
-        }
-    )
 
 
