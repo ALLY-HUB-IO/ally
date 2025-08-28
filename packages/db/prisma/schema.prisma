@@ -85,4 +85,40 @@ model Reaction {
   @@index([userId, kind], map: "idx_reaction_user_kind")
 }
 
+// Event persistence for audit trail
+model EventsRaw {
+  id              String   @id @default(cuid())
+  idempotencyKey  String   @unique
+  projectId       String
+  platform        String
+  type            String
+  ts              DateTime
+  source          Json
+  payload         Json
+  createdAt       DateTime @default(now())
+
+  @@index([projectId, platform], map: "idx_events_raw_project_platform")
+  @@index([type, ts], map: "idx_events_raw_type_ts")
+  @@index([projectId, ts], map: "idx_events_raw_project_ts")
+}
+
+// Scored interactions from processed events
+model Interactions {
+  id           String    @id @default(cuid())
+  externalId   String
+  platform     String
+  projectId    String
+  authorId     String?
+  content      String
+  score        Float
+  rationale    String
+  createdAt    DateTime  @default(now())
+  editedAt     DateTime?
+
+  @@unique([platform, externalId], map: "uq_interactions_platform_external")
+  @@index([projectId, authorId], map: "idx_interactions_project_author")
+  @@index([projectId, score], map: "idx_interactions_project_score")
+  @@index([platform, createdAt], map: "idx_interactions_platform_created")
+}
+
 

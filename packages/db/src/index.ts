@@ -9,6 +9,13 @@ export function getPrismaClient(): PrismaClient {
   return prismaSingleton;
 }
 
-export type { User, Message, Score, Reaction } from '@prisma/client';
+export type { User, Message, Score, Reaction, EventsRaw, Interactions } from '@prisma/client';
+
+// Persistence service exports
+export { 
+  createPersistenceService, 
+  DatabasePersistenceService,
+  type PersistenceService 
+} from './persistence.js';
 
 

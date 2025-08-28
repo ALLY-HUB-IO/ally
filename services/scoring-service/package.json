@@ -11,6 +11,7 @@
     "test:integration": "node tests/integration.test.js"
   },
   "dependencies": {
+    "@ally/db": "*",
     "@ally/events": "*",
     "@ally/intelligence-edgecloud": "*",
     "@ally/scoring-orchestrator": "*",

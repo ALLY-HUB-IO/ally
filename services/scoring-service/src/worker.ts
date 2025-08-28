@@ -9,6 +9,7 @@ import {
 import { EventEnvelope } from '@ally/events/envelope';
 import { EventType } from '@ally/events/catalog';
 import { createScoreOrchestrator } from '@ally/scoring-orchestrator';
+import { createPersistenceService } from '@ally/db';
 
 export interface WorkerConfig {
   redis: RedisLike;
@@ -32,6 +33,7 @@ export class ScoringWorker {
   private config: WorkerConfig;
   private stats: WorkerStats;
   private orchestrator: ReturnType<typeof createScoreOrchestrator>;
+  private persistence: ReturnType<typeof createPersistenceService>;
   private abortController?: AbortController;
 
   constructor(config: WorkerConfig) {
@@ -43,6 +45,7 @@ export class ScoringWorker {
       messagesIgnored: 0,
     };
     this.orchestrator = createScoreOrchestrator();
+    this.persistence = createPersistenceService();
   }
 
   async start(): Promise<void> {
@@ -109,6 +112,9 @@ export class ScoringWorker {
         payload: JSON.parse(fields.payload || '{}'),
       };
 
+      // Save raw event to database for audit trail
+      await this.persistence.saveEventRaw(envelope);
+
       // Route by event type
       const shouldProcess = this.shouldProcessEvent(envelope);
       if (!shouldProcess) {
@@ -162,7 +168,17 @@ export class ScoringWorker {
 
     console.log(`[worker] Scored message ${payload.externalId}: ${result.finalScore.toFixed(3)}`);
 
-    // TODO: Save to database (step 10)
+    // Save interaction to database
+    await this.persistence.upsertInteraction(
+      payload.externalId,
+      envelope.platform,
+      envelope.projectId,
+      payload.author?.id || null,
+      payload.content,
+      result.finalScore,
+      `Score: ${result.finalScore.toFixed(3)}, Sentiment: ${result.breakdown.sentiment.label}, Processing time: ${result.metadata.processingTimeMs}ms`
+    );
+
     // TODO: Publish to scored stream (step 11)
   }
 
