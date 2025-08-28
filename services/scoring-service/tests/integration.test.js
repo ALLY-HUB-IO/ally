@@ -85,7 +85,7 @@ async function runIntegrationTest() {
       source: JSON.stringify({}),
       payload: JSON.stringify({
         externalId: 'test-message-malformed'
-        // Missing content - should cause error
+        // Missing content - should cause error and land in DLQ
       })
     };
     
@@ -94,6 +94,25 @@ async function runIntegrationTest() {
     });
     
     console.log(`✅ Published malformed message: ${malformedId}`);
+    
+    // Test 4: Publish a message with invalid JSON in payload
+    console.log('\n📝 Test 4: Publishing message with invalid JSON...');
+    const invalidJsonMessage = {
+      version: 'v1',
+      idempotencyKey: `test-invalid-json-${Date.now()}`,
+      projectId: PROJECT_ID,
+      platform: 'discord',
+      type: 'platform.discord.message.created',
+      ts: new Date().toISOString(),
+      source: JSON.stringify({}),
+      payload: '{"externalId": "test-invalid-json", "content": "test", "invalid": }' // Invalid JSON
+    };
+    
+    const invalidJsonId = await xaddObj(redis, stream, invalidJsonMessage, {
+      maxLen: { strategy: 'approx', count: 1000 }
+    });
+    
+    console.log(`✅ Published invalid JSON message: ${invalidJsonId}`);
     
     // Wait for processing
     console.log('\n⏳ Waiting 10 seconds for worker to process messages...');
@@ -150,6 +169,14 @@ async function runIntegrationTest() {
     console.log('   npm run dev');
     console.log('   # or');
     console.log('   docker compose up scoring-service');
+    
+    // Test requeue functionality if there are DLQ entries
+    if (dlqEntries.length > 0) {
+      console.log('\n🔄 Testing requeue functionality...');
+      console.log('   To requeue DLQ entries, run:');
+      console.log(`   node tools/requeue-dlq.ts ${PROJECT_ID} --dry-run`);
+      console.log(`   node tools/requeue-dlq.ts ${PROJECT_ID} --error-pattern "content is required"`);
+    }
     
   } catch (error) {
     console.error('❌ Integration test failed:', error);
