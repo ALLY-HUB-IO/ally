@@ -11,6 +11,7 @@ ALLY-Hub is a mono-repo for a service-oriented platform that ingests social inte
 - A static marketing site (`apps/website`)
 - A TypeScript scoring service (`services/scoring-service`) with Redis event streaming
 - A Python FastAPI sentiment/NER service (`services/sentiment-service`)
+- A TypeScript shade agent service (`services/shade-agent`) for cross-chain transactions
 - Shared TypeScript libraries in `packages/`
 - PostgreSQL database with Prisma ORM (`packages/db`)
 
@@ -19,6 +20,7 @@ The goal is to create:
 - View real-time stats & trends
 - Inspect scored interactions with rationale & sentiment
 - Collect data for fine-tuning AI models
+- Cross-chain reward payouts via secure shade agent integration
 
 ---
 
@@ -38,7 +40,8 @@ ally/
 │   └── platform-adapters/       # Discord adapter
 ├── services/
 │   ├── scoring-service/         # Node/Express API with Redis event streaming
-│   └── sentiment-service/       # FastAPI service (sentiment + NER)
+│   ├── sentiment-service/       # FastAPI service (sentiment + NER)
+│   └── shade-agent/            # TypeScript API for cross-chain transactions
 ├── infra/                       # docker-compose, env example and prompts file
 └── tools/                       # CLI tools for monitoring and testing
 ```
@@ -96,6 +99,16 @@ DISCORD_BOT_TOKEN=your_discord_bot_token_here
 TEC_RAG_BASE_URL=your_edgecloud_url
 TEC_RAG_API_KEY=your_edgecloud_api_key
 TEC_CHAT_ID=your_chat_id
+
+# Shade Agent configuration (for cross-chain transactions)
+NEAR_NETWORK=mainnet
+NEAR_RPC_URL=https://rpc.mainnet.near.org
+AGENT_ACCOUNT=your-agent-account.near
+NEAR_ACCOUNT_ID=your-agent-account.near
+NEAR_SEED_PHRASE=your-12-word-seed-phrase
+NEXT_PUBLIC_contractId=ac-proxy.your-agent-account.near
+SHADE_AGENT_HTTP_PORT=8090
+SHADE_AGENT_TOKEN=your-secret-token
 ```
 
 ### 3. Start Local Stack
@@ -111,6 +124,7 @@ This brings up:
 - `redis` on localhost:6379
 - `postgres` on localhost:5432
 - `ingestion-service` on http://localhost:8082
+- `shade-agent` on http://localhost:8090
 
 ### 4. Verify Services
 
@@ -123,6 +137,9 @@ curl -s http://localhost:8081/health
 
 # Check ingestion service
 curl -s http://localhost:8082/health
+
+# Check shade agent service
+curl -s http://localhost:8090/:healthz
 ```
 
 ---
@@ -174,7 +191,24 @@ This will test:
 - Saving scored interactions to `interactions` table
 - Idempotency handling
 
-### 4. Monitor Real-time Processing
+### 4. Test Shade Agent Service
+
+```bash
+# Get agent account info
+curl http://localhost:8090/api/evm-account
+
+# Get agent balance on Theta testnet
+curl http://localhost:8090/api/evm-account?chain=theta-365
+
+# Estimate gas for a transaction
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"recipientAddress":"0x1234567890123456789012345678901234567890","amount":"1000000000000000000"}' \
+  http://localhost:8090/api/transaction/estimate-gas
+```
+
+**Note**: The shade agent requires the TEE service to be running locally. See `services/shade-agent/README.md` for complete setup instructions.
+
+### 5. Monitor Real-time Processing
 
 ```bash
 # Check worker stats
@@ -198,7 +232,7 @@ Promise.all([
 "
 ```
 
-### 5. View Database Data
+### 6. View Database Data
 
 ```bash
 cd packages/db
@@ -334,15 +368,22 @@ Each `services/<name>` folder has its own `Dockerfile`:
   - Event ingestion and normalization
   - Publishes to Redis streams
 
+- `services/shade-agent` (TypeScript/Hono)
+  - Endpoints: `GET /:healthz`, `GET /api/evm-account`, `POST /api/transaction/send`
+  - Cross-chain transaction execution (Theta, Ethereum)
+  - Chain signature integration with NEAR blockchain
+  - Hybrid deployment: API in Docker, TEE service locally
+
 TODO:
 - **reward-service**: TS listener for reward decisions (Near Shade Agent)
 - **dashboard-service**: TS backend + React frontend
+- **shade-agent-cli**: TEE service deployment and management
 
 ---
 
 ## 🌐 Frontend Applications (`apps/`)
 
-- **dashboard (TODO)**: React admin UI to: view stats, trends, and flag messages
+- **dashboard (TODO)**: React admin UI to: view stats, trends, flag messages, and manage cross-chain payouts
 - **website**: Public Next.js site (static export) deployed on Cloudflare Pages
 
 ### Deploying `apps/website`
@@ -373,6 +414,8 @@ TODO:
 6. **Week 6**: Config API, context uploader, reward stub
 7. **Week 7**: Admin dashboard MVP (Stats, Trends, Data Collection)
 8. **Week 8**: E2E testing, fine-tuning pipeline, MVP launch
+
+**Additional**: Shade Agent integration for cross-chain reward payouts ✅
 
 ---
 
