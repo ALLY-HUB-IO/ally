@@ -36,3 +36,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Shade Agent specific patterns
+# Yarn specific
+**/.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Contract build artifacts
+contract/target
+
+# Release artifacts
+new-release/
