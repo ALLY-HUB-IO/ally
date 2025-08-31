@@ -83,6 +83,29 @@ services:
           cpus: '0.5'
           memory: 512m
 
+  shade-agent:
+    build:
+      context: ../services/shade-agent
+      dockerfile: Dockerfile
+    env_file:
+      - ./.env
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8090/:healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    # Note: TEE service should be running locally on port 3140
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512m
+    restart: unless-stopped
+
+
+
 volumes:
   hf-cache:
   postgres-data:
