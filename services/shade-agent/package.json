@@ -1,0 +1,28 @@
+{
+  "name": "@ally/shade-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "docker:build": "docker build --platform linux/amd64 -t ally/shade-agent:latest .",
+    "docker:build:no-cache": "docker build --no-cache --platform linux/amd64 -t ally/shade-agent:latest ."
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.15.0",
+    "@neardefi/shade-agent-js": "^1.0.0",
+    "chainsig.js": "^1.1.9",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "ethers": "^6.11.1",
+    "got": "^11.8.6",
+    "hono": "^4.8.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

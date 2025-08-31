@@ -1,0 +1,14 @@
+{
+    "nearRpcProviders": [
+        {
+        "connectionInfo": {
+            "url": "https://free.rpc.fastnear.com"
+        },
+        "options": {
+            "retries": 3,
+            "backoff": 2,
+            "wait": 500
+        }
+        }
+    ]
+}

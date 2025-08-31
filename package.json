@@ -2,20 +2,23 @@
     "name": "ally-hub",
     "private": true,
     "workspaces": [
-      "apps/*",
-      "packages/*",
-      "packages/*/*",
-      "services/*"
+        "apps/*",
+        "packages/*",
+        "packages/*/*",
+        "services/*"
     ],
     "scripts": {
-      "build": "yarn workspaces run build",
-      "dev": "yarn workspaces run dev",
-      "tail-stream": "node tools/tail-stream.js",
-      "tail-all-discord": "node tools/tail-all-discord.js"
+        "build": "yarn workspaces run build",
+        "dev": "yarn workspaces run dev",
+        "tail-stream": "node tools/tail-stream.js",
+        "tail-all-discord": "node tools/tail-all-discord.js"
     },
     "devDependencies": {
-      "ioredis": "^5.4.1",
-      "ts-node": "^10.9.2",
-      "typescript": "^5.5.4"
+        "ioredis": "^5.4.1",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.5.4"
+    },
+    "dependencies": {
+        "got": "^11.8.6"
     }
-  }
+}
