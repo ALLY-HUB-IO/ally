@@ -121,4 +121,90 @@ model Interactions {
   @@index([platform, createdAt], map: "idx_interactions_platform_created")
 }
 
+// Admin users for the admin interface
+model Admin {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  email        String     @unique
+  name         String
+  passwordHash String
+  isActive     Boolean    @default(true)
+  lastLoginAt  DateTime?
+  
+  // Relations
+  campaigns    Campaign[]
+  payouts      Payout[]
+}
+
+// Token reward campaigns
+model Campaign {
+  id              String     @id @default(cuid())
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  name            String
+  description     String?
+  tokenSymbol     String     // e.g., "TFUEL", "ETH", "ALLY"
+  tokenAddress    String?    // Contract address if applicable
+  totalRewardPool String     // Amount in wei or smallest unit
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean    @default(true)
+  minScore        Float?     // Minimum score threshold for rewards
+  maxRewardPerUser String?   // Maximum reward per user
+  
+  // Admin who created this campaign
+  createdById     String
+  createdBy       Admin      @relation(fields: [createdById], references: [id])
+  
+  // Relations
+  payouts         Payout[]
+  
+  @@index([startDate, endDate], map: "idx_campaign_dates")
+  @@index([isActive], map: "idx_campaign_active")
+}
+
+// Individual payouts to users
+model Payout {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  userId       String
+  campaignId   String
+  amount       String     // Amount in wei or smallest unit
+  status       PayoutStatus @default(PENDING)
+  txHash       String?    // Blockchain transaction hash
+  errorMessage String?    // Error details if failed
+  
+  // Admin who processed this payout
+  processedById String?
+  processedBy   Admin?    @relation(fields: [processedById], references: [id])
+  
+  // Campaign this payout belongs to
+  campaign      Campaign  @relation(fields: [campaignId], references: [id])
+  
+  @@index([userId, campaignId], map: "idx_payout_user_campaign")
+  @@index([status], map: "idx_payout_status")
+  @@index([createdAt], map: "idx_payout_created")
+}
+
+// System configuration and settings
+model SystemConfig {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  
+  @@index([key], map: "idx_system_config_key")
+}
+
+// Enums
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
 
