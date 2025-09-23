@@ -42,7 +42,8 @@ let discordClient: any = null;
 
 // Build Redis stream key
 function buildStreamKey(eventType: string): string {
-  return `ally:${PROJECT_ID}:${eventType}`;
+  // Use the same format as the scoring service expects
+  return `ally:events:ingest:v1:${PROJECT_ID}:discord`;
 }
 
 // Filter messages based on configuration

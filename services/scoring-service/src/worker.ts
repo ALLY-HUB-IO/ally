@@ -160,7 +160,7 @@ export class ScoringWorker {
     // Score the message using the orchestrator
     const result = await this.orchestrator.score({
       text: payload.content,
-      projectId: envelope.projectId,
+      projectId: process.env.TEC_CHAT_ID || envelope.projectId,
       context: {
         messageId: payload.externalId,
         authorId: payload.author?.id,
