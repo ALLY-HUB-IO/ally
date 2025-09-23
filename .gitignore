@@ -50,3 +50,10 @@ contract/target
 
 # Release artifacts
 new-release/
+
+# Admin Dashboard
+apps/admin-dashboard/node_modules
+apps/admin-dashboard/dist
+apps/admin-dashboard/build
+apps/admin-dashboard/out
+apps/admin-dashboard/.next
