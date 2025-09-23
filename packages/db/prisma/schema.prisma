@@ -13,76 +13,188 @@ model User {
   id           String     @id @default(cuid())
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-  // Unique identity of the user within the system (could be wallet, username, or platform ID)
-  identity     String     @unique
+  wallet       String?    @unique
   displayName  String?
-
-  // Derived/aggregated trust value (cached for quick reads)
   trust        Float      @default(0)
+  
+  platformUsers PlatformUser[]
+  payouts       Payout[]
+  
+  @@index([wallet])
+  @@index([trust])
+}
 
+model PlatformUser {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  platform     String
+  platformId   String
+  displayName  String?
+  avatarUrl    String?
+  
   messages     Message[]
-  reactions    Reaction[]
   scores       Score[]
+  reactions    Reaction[]
+  payouts      Payout[]
+  
+  @@unique([platform, platformId])
+  @@index([userId])
+  @@index([platform, platformId])
+}
+
+model Source {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  platform     String
+  platformId   String
+  name         String?
+  description  String?
+  isActive     Boolean    @default(true)
+  projectId    String
+  crawlConfig  Json?
+  
+  messages     Message[]
+  snapshots    MetricSnapshot[]
+  checkpoints  IngestCheckpoint[]
+  
+  @@unique([platform, platformId])
+  @@index([projectId, isActive])
+  @@index([platform, isActive])
 }
 
 model Message {
   id           String     @id @default(cuid())
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
-
-  // External message id (from chat or platform) if any
-  externalId   String?    @unique
+  
+  projectId    String
+  sourceId     String
+  source       Source     @relation(fields: [sourceId], references: [id])
+  externalId   String
+  authorId     String
+  author       PlatformUser @relation(fields: [authorId], references: [id])
   content      String
-  // Optional reference to author
-  authorId     String?
-  author       User?      @relation(fields: [authorId], references: [id])
-
-  // Scores, reactions linked to this message
+  contentLang  String?
+  isDeleted    Boolean    @default(false)
+  
   scores       Score[]
   reactions    Reaction[]
-}
-
-model Score {
-  id           String     @id @default(cuid())
-  createdAt    DateTime   @default(now())
-
-  // Type of score e.g., sentiment, toxicity, relevance, overall
-  kind         String
-  // Numeric score value (normalized 0..1 or -1..1 depending on kind)
-  value        Float
-
-  // Which service produced it (e.g., sentiment-service, scoring-service)
-  source       String
-
-  // Foreign keys
-  messageId    String
-  message      Message    @relation(fields: [messageId], references: [id])
-
-  userId       String?
-  user         User?      @relation(fields: [userId], references: [id])
-
-  @@index([messageId, kind], map: "idx_score_message_kind")
-  @@index([userId, kind], map: "idx_score_user_kind")
+  relationsFrom MessageRelation[] @relation("from")
+  relationsTo   MessageRelation[] @relation("to")
+  discordDetails DiscordMessageDetail?
+  
+  @@unique([sourceId, externalId])
+  @@index([authorId, createdAt])
+  @@index([sourceId, createdAt])
+  @@index([isDeleted, createdAt])
+  @@index([projectId, createdAt])
 }
 
 model Reaction {
   id           String     @id @default(cuid())
   createdAt    DateTime   @default(now())
-
-  // Reaction type: like, dislike, emoji names, etc.
+  
   kind         String
-  // Optional numeric weight for certain reaction types
   weight       Float?     @default(1)
-
-  // Foreign keys
+  
   messageId    String
   message      Message    @relation(fields: [messageId], references: [id])
+  platformUserId String
+  platformUser PlatformUser @relation(fields: [platformUserId], references: [id])
+  
+  @@index([messageId, kind])
+  @@index([platformUserId, kind])
+  @@index([messageId, platformUserId])
+}
 
-  userId       String
-  user         User       @relation(fields: [userId], references: [id])
+model Score {
+  id             String     @id @default(cuid())
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  kind           String
+  value          Float
+  messageId      String
+  message        Message    @relation(fields: [messageId], references: [id])
+  platformUserId String
+  platformUser   PlatformUser @relation(fields: [platformUserId], references: [id])
+  details        Json?
+  
+  @@index([messageId, kind])
+  @@index([platformUserId, kind])
+  @@index([messageId, platformUserId])
+}
 
-  @@index([messageId, kind], map: "idx_reaction_message_kind")
-  @@index([userId, kind], map: "idx_reaction_user_kind")
+model MessageRelation {
+  id       String       @id @default(cuid())
+  kind     RelationKind
+  fromId   String
+  toId     String
+  from     Message      @relation("from", fields: [fromId], references: [id])
+  to       Message      @relation("to", fields: [toId], references: [id])
+  
+  @@index([fromId, kind])
+  @@index([toId, kind])
+  @@index([kind])
+}
+
+model DiscordMessageDetail {
+  messageId     String   @id
+  message       Message  @relation(fields: [messageId], references: [id])
+  guildId       String?
+  channelId     String?
+  threadId      String?
+  embeds        Json?
+  attachments   Json?
+  
+  @@index([guildId])
+  @@index([channelId])
+  @@index([threadId])
+}
+
+model MetricSnapshot {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  sourceId     String
+  source       Source     @relation(fields: [sourceId], references: [id])
+  
+  messageCount Int        @default(0)
+  userCount    Int        @default(0)
+  avgScore     Float?
+  totalScore   Float      @default(0)
+  
+  periodStart  DateTime
+  periodEnd    DateTime
+  
+  @@index([sourceId, createdAt])
+  @@index([periodStart, periodEnd])
+  @@index([sourceId, periodStart])
+}
+
+model IngestCheckpoint {
+  id           String     @id @default(cuid())
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  
+  sourceId     String
+  source       Source     @relation(fields: [sourceId], references: [id])
+  
+  lastMessageId String?
+  lastTimestamp DateTime?
+  cursor        String?
+  status        String    @default("active")
+  
+  errorCount    Int       @default(0)
+  lastError     String?
+  lastErrorAt   DateTime?
+  
+  @@unique([sourceId])
+  @@index([status, updatedAt])
 }
 
 // Event persistence for audit trail
@@ -97,28 +209,9 @@ model EventsRaw {
   payload         Json
   createdAt       DateTime @default(now())
 
-  @@index([projectId, platform], map: "idx_events_raw_project_platform")
-  @@index([type, ts], map: "idx_events_raw_type_ts")
-  @@index([projectId, ts], map: "idx_events_raw_project_ts")
-}
-
-// Scored interactions from processed events
-model Interactions {
-  id           String    @id @default(cuid())
-  externalId   String
-  platform     String
-  projectId    String
-  authorId     String?
-  content      String
-  score        Float
-  rationale    String
-  createdAt    DateTime  @default(now())
-  editedAt     DateTime?
-
-  @@unique([platform, externalId], map: "uq_interactions_platform_external")
-  @@index([projectId, authorId], map: "idx_interactions_project_author")
-  @@index([projectId, score], map: "idx_interactions_project_score")
-  @@index([platform, createdAt], map: "idx_interactions_platform_created")
+  @@index([projectId, platform])
+  @@index([type, ts])
+  @@index([projectId, ts])
 }
 
 // Admin users for the admin interface
@@ -132,60 +225,64 @@ model Admin {
   isActive     Boolean    @default(true)
   lastLoginAt  DateTime?
   
-  // Relations
   campaigns    Campaign[]
   payouts      Payout[]
 }
 
 // Token reward campaigns
 model Campaign {
-  id              String     @id @default(cuid())
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  name            String
-  description     String?
-  tokenSymbol     String     // e.g., "TFUEL", "ETH", "ALLY"
-  tokenAddress    String?    // Contract address if applicable
-  totalRewardPool String     // Amount in wei or smallest unit
-  startDate       DateTime
-  endDate         DateTime
-  isActive        Boolean    @default(true)
-  minScore        Float?     // Minimum score threshold for rewards
-  maxRewardPerUser String?   // Maximum reward per user
+  id                String     @id @default(cuid())
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  name              String
+  description       String?
+  tokenSymbol       String
+  isNative          Boolean    @default(false)
+  chainId           String?
+  tokenAddress      String?
+  totalRewardPool   String
+  startDate         DateTime
+  endDate           DateTime
+  isActive          Boolean    @default(true)
+  minScore          Float?
+  maxRewardsPerUser String?
+  timeframe         Int
+  platforms         String[]
+  createdById       String
+  createdBy         Admin      @relation(fields: [createdById], references: [id])
   
-  // Admin who created this campaign
-  createdById     String
-  createdBy       Admin      @relation(fields: [createdById], references: [id])
+  payouts           Payout[]
   
-  // Relations
-  payouts         Payout[]
-  
-  @@index([startDate, endDate], map: "idx_campaign_dates")
-  @@index([isActive], map: "idx_campaign_active")
+  @@index([startDate, endDate])
+  @@index([isActive])
+  @@index([platforms])
 }
 
 // Individual payouts to users
 model Payout {
-  id           String     @id @default(cuid())
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  userId       String
-  campaignId   String
-  amount       String     // Amount in wei or smallest unit
-  status       PayoutStatus @default(PENDING)
-  txHash       String?    // Blockchain transaction hash
-  errorMessage String?    // Error details if failed
+  id             String       @id @default(cuid())
+  createdAt      DateTime     @default(now())
+  payoutAt       DateTime?
+  status         PayoutStatus @default(PENDING)
+  periodStart    DateTime
+  periodEnd      DateTime
+  platformUserId String
+  platformUser   PlatformUser @relation(fields: [platformUserId], references: [id])
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  campaignId     String
+  campaign       Campaign     @relation(fields: [campaignId], references: [id])
+  amount         String
+  txHash         String?
+  errorMessage   String?
+  processedById  String?
+  processedBy    Admin?       @relation(fields: [processedById], references: [id])
   
-  // Admin who processed this payout
-  processedById String?
-  processedBy   Admin?    @relation(fields: [processedById], references: [id])
-  
-  // Campaign this payout belongs to
-  campaign      Campaign  @relation(fields: [campaignId], references: [id])
-  
-  @@index([userId, campaignId], map: "idx_payout_user_campaign")
-  @@index([status], map: "idx_payout_status")
-  @@index([createdAt], map: "idx_payout_created")
+  @@index([userId, campaignId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([periodStart, periodEnd])
+  @@index([platformUserId, campaignId])
 }
 
 // System configuration and settings
@@ -195,7 +292,7 @@ model SystemConfig {
   value     String
   updatedAt DateTime @updatedAt
   
-  @@index([key], map: "idx_system_config_key")
+  @@index([key])
 }
 
 // Enums
@@ -207,4 +304,11 @@ enum PayoutStatus {
   CANCELLED
 }
 
-
+enum RelationKind {
+  REPLY_TO
+  QUOTE_OF
+  RETWEET_OF
+  REPOST_OF
+  THREAD_PARENT
+  MENTIONS
+}
