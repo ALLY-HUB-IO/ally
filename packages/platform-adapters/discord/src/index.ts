@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Partials, Message, Events, MessageReaction } from "discord.js";
+import { Client, GatewayIntentBits, Partials, Message, Events, MessageReaction, User } from "discord.js";
 import { EventEnvelope } from "@ally/events/envelope";
 import { EventType, EVENT_VERSION } from "@ally/events/catalog";
 import { normalizeMessageCreated, normalizeMessageUpdated, normalizeReactionAdded, normalizeReactionRemoved, normalizeMessageDeleted } from "./normalizers.js";
@@ -37,7 +37,9 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
   client.on(Events.MessageCreate, async (message: Message) => {
     if (!options.includeBots && message.author?.bot) return;
     try {
-      const payload = normalizeMessageCreated(message);
+      // Ensure we have the full message data, including references
+      const fullMessage = message.partial ? await message.fetch() : message;
+      const payload = normalizeMessageCreated(fullMessage);
       const envelope: EventEnvelope<typeof payload> = {
         version: EVENT_VERSION,
         idempotencyKey: `discord:created:${payload.externalId}:${payload.createdAt}`,
@@ -117,7 +119,7 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
     try {
       const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
       const fullReaction = reaction.partial ? await reaction.fetch() : reaction;
-      const payload = normalizeReactionRemoved(fullReaction, message);
+      const payload = normalizeReactionRemoved(fullReaction, message, user as User);
       const envelope: EventEnvelope<typeof payload> = {
         version: EVENT_VERSION,
         idempotencyKey: `discord:reaction:removed:${payload.externalId}:${payload.createdAt}`,
@@ -166,6 +168,91 @@ export function startDiscordAdapter(options: DiscordAdapterOptions, publisher: P
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error("Failed to normalize or publish MessageDelete", err);
+    }
+  });
+
+  // Handle thread creation events
+  client.on(Events.ThreadCreate, async (thread) => {
+    try {
+      // Try to fetch the starter message
+      const starterMessage = await thread.fetchStarterMessage();
+      
+      if (starterMessage) {
+        console.log(`[discord-adapter] Thread created: ${thread.name} from message ${starterMessage.id}`);
+        
+        // Publish a thread creation event with the starter message info
+        const payload = {
+          threadId: thread.id,
+          threadName: thread.name,
+          guildId: thread.guildId,
+          parentChannelId: thread.parentId,
+          starterMessageId: starterMessage.id,
+          starterMessageContent: starterMessage.content,
+          starterMessageAuthor: {
+            id: starterMessage.author.id,
+            username: starterMessage.author.username,
+            displayName: (starterMessage.author as any).globalName ?? (starterMessage.author as any).displayName,
+            avatarUrl: starterMessage.author.displayAvatarURL()
+          },
+          createdAt: thread.createdAt?.toISOString() || new Date().toISOString()
+        };
+        
+        const envelope: EventEnvelope<typeof payload> = {
+          version: EVENT_VERSION,
+          idempotencyKey: `discord:thread:created:${thread.id}:${payload.createdAt}`,
+          projectId: options.projectId,
+          platform: "discord",
+          type: EventType.DISCORD_THREAD_CREATED,
+          ts: new Date().toISOString(),
+          source: {
+            guildId: thread.guildId ?? undefined,
+            channelId: thread.parentId ?? undefined,
+            threadId: thread.id
+          },
+          payload
+        };
+        
+        await publisher.publish(envelope);
+      } else {
+        console.log(`[discord-adapter] Thread created but could not fetch starter message: ${thread.name}`);
+      }
+    } catch (error) {
+      console.error('[discord-adapter] Error handling thread creation:', error);
+    }
+  });
+
+  // Handle thread deletion events
+  client.on(Events.ThreadDelete, async (thread) => {
+    try {
+      console.log(`[discord-adapter] Thread deleted: ${thread.name} (${thread.id})`);
+      
+      // Publish a thread deletion event
+      const payload = {
+        threadId: thread.id,
+        threadName: thread.name,
+        guildId: thread.guildId,
+        parentChannelId: thread.parentId,
+        deletedAt: new Date().toISOString()
+      };
+      
+      const envelope: EventEnvelope<typeof payload> = {
+        version: EVENT_VERSION,
+        idempotencyKey: `discord:thread:deleted:${thread.id}:${payload.deletedAt}`,
+        projectId: options.projectId,
+        platform: "discord",
+        type: EventType.DISCORD_THREAD_DELETED,
+        ts: new Date().toISOString(),
+        source: {
+          guildId: thread.guildId ?? undefined,
+          channelId: thread.parentId ?? undefined,
+          threadId: thread.id
+        },
+        payload
+      };
+      
+      await publisher.publish(envelope);
+    } catch (error) {
+      console.error('[discord-adapter] Error handling thread deletion:', error);
     }
   });
 
