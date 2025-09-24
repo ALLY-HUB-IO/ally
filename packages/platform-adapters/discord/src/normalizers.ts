@@ -7,6 +7,7 @@ function buildAuthor(user: User | null | undefined) {
     username: user?.username,
     discriminator: (user as any)?.discriminator, // discord.js v14 removed discriminator for usernames; keep optional
     displayName: (user as any)?.globalName ?? (user as any)?.displayName,
+    avatarUrl: user?.displayAvatarURL() ?? undefined,
     isBot: user?.bot ?? false,
     roles: undefined,
   };
@@ -30,6 +31,34 @@ function threadIdOf(message: Message): string | null | undefined {
 
 export function normalizeMessageCreated(message: Message): DiscordMessageCreated {
   const guild: Guild | null = message.guild ?? null;
+  
+  // Log reply detection for monitoring
+  if (message.type === 19) {
+    console.log(`[discord-normalizer] Reply detected: ${message.id} -> ${message.reference?.messageId || 'unknown'}`);
+  }
+  
+  // Try to get reference data from different sources
+  let referencedMessage = undefined;
+  
+  // Try multiple possible property names for message references
+  const possibleReferences = [
+    message.reference,
+    (message as any).messageReference,
+    (message as any).referencedMessage,
+    (message as any).replyTo
+  ];
+  
+  for (const ref of possibleReferences) {
+    if (ref?.messageId) {
+      referencedMessage = {
+        id: ref.messageId,
+        channelId: ref.channelId,
+        guildId: ref.guildId
+      };
+      break;
+    }
+  }
+  
   return {
     externalId: message.id,
     guildId: guild?.id ?? undefined,
@@ -40,6 +69,7 @@ export function normalizeMessageCreated(message: Message): DiscordMessageCreated
     attachments: buildAttachments(message.attachments as any),
     link: messageLink(message),
     createdAt: message.createdAt.toISOString(),
+    referencedMessage,
   };
 }
 
@@ -84,15 +114,15 @@ export function normalizeReactionAdded(reaction: MessageReaction, message: Messa
   };
 }
 
-export function normalizeReactionRemoved(reaction: MessageReaction, message: Message): DiscordReactionEvent {
+export function normalizeReactionRemoved(reaction: MessageReaction, message: Message, user: User): DiscordReactionEvent {
   const guild: Guild | null = message.guild ?? null;
   return {
-    externalId: `${reaction.emoji.id ?? reaction.emoji.name}-${reaction.users.cache.first()?.id ?? 'unknown'}`,
+    externalId: `${reaction.emoji.id ?? reaction.emoji.name}-${user.id}`,
     messageId: message.id,
     guildId: guild?.id ?? undefined,
     channelId: message.channelId,
     threadId: threadIdOf(message),
-    author: buildAuthor(reaction.users.cache.first()),
+    author: buildAuthor(user),
     emoji: buildEmoji(reaction.emoji),
     messageAuthor: buildAuthor(message.author),
     messageContent: message.content ?? "",

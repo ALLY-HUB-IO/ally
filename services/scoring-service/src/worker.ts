@@ -1,4 +1,3 @@
-import Redis from 'ioredis';
 import { 
   xreadGroupLoop, 
   ingestStreamKey, 
@@ -8,27 +7,10 @@ import {
   type RedisLike 
 } from '@ally/events/streams';
 import { EventEnvelope } from '@ally/events/envelope';
-import { EventType } from '@ally/events/catalog';
 import { createScoreOrchestrator } from '@ally/scoring-orchestrator';
 import { createPersistenceService } from '@ally/db';
-
-export interface WorkerConfig {
-  redis: RedisLike;
-  projectId: string;
-  platform: string;
-  consumerGroup: string;
-  consumerName: string;
-  count?: number;
-  blockMs?: number;
-}
-
-export interface WorkerStats {
-  messagesReceived: number;
-  messagesProcessed: number;
-  messagesFailed: number;
-  messagesIgnored: number;
-  lastProcessedAt?: Date;
-}
+import { PlatformEventProcessor, WorkerConfig, WorkerStats } from './types.js';
+import { DiscordEventProcessor, TelegramEventProcessor } from './processors/index.js';
 
 export class ScoringWorker {
   private config: WorkerConfig;
@@ -36,6 +18,7 @@ export class ScoringWorker {
   private orchestrator: ReturnType<typeof createScoreOrchestrator>;
   private persistence: ReturnType<typeof createPersistenceService>;
   private abortController?: AbortController;
+  private platformProcessors: PlatformEventProcessor[];
 
   constructor(config: WorkerConfig) {
     this.config = config;
@@ -47,6 +30,14 @@ export class ScoringWorker {
     };
     this.orchestrator = createScoreOrchestrator();
     this.persistence = createPersistenceService();
+    
+    // Initialize platform processors
+    this.platformProcessors = [
+      new DiscordEventProcessor(),
+      // new TelegramEventProcessor(),
+      // Add more platform processors here as needed
+      // new TwitterEventProcessor(),
+    ];
   }
 
   async start(): Promise<void> {
@@ -145,72 +136,24 @@ export class ScoringWorker {
   }
 
   private shouldProcessEvent(envelope: EventEnvelope<any>): boolean {
-    // Only process message creation events for now
-    // Can be extended to handle updates, deletions, reactions, etc.
-    return envelope.type === EventType.DISCORD_MESSAGE_CREATED;
+    // Check if any platform processor can handle this event
+    return this.platformProcessors.some(processor => 
+      processor.canHandle(envelope.platform, envelope.type)
+    );
   }
 
   private async processEvent(envelope: EventEnvelope<any>): Promise<void> {
-    const { payload } = envelope;
-    
-    if (!payload.content || typeof payload.content !== 'string') {
-      throw new Error('Message content is required for scoring');
-    }
-
-    // Score the message using the orchestrator
-    const result = await this.orchestrator.score({
-      text: payload.content,
-      projectId: process.env.TEC_CHAT_ID || envelope.projectId,
-      context: {
-        messageId: payload.externalId,
-        authorId: payload.author?.id,
-        timestamp: envelope.ts,
-      },
-    });
-
-    console.log(`[worker] Scored message ${payload.externalId}: ${result.finalScore.toFixed(3)}`);
-
-    // Save interaction to database
-    await this.persistence.upsertInteraction(
-      payload.externalId,
-      envelope.platform,
-      envelope.projectId,
-      payload.author?.id || null,
-      payload.content,
-      result.finalScore,
-      `Score: ${result.finalScore.toFixed(3)}, Sentiment: ${result.breakdown.sentiment.label}, Processing time: ${result.metadata.processingTimeMs}ms`
+    // Find the appropriate platform processor
+    const processor = this.platformProcessors.find(p => 
+      p.canHandle(envelope.platform, envelope.type)
     );
 
-    // Publish scored event to scored stream
-    const scoredStream = scoredStreamKey(envelope.projectId);
-    const scoredEvent = {
-      version: 'v1',
-      idempotencyKey: `scored-${envelope.idempotencyKey}`,
-      projectId: envelope.projectId,
-      platform: envelope.platform,
-      type: 'platform.scored.message',
-      ts: new Date().toISOString(),
-      source: JSON.stringify({
-        originalEventId: envelope.idempotencyKey,
-        originalType: envelope.type,
-        scoringService: 'scoring-service',
-      }),
-      payload: JSON.stringify({
-        externalId: payload.externalId,
-        authorId: payload.author?.id,
-        content: payload.content,
-        score: result.finalScore,
-        breakdown: result.breakdown,
-        metadata: result.metadata,
-        originalEvent: envelope,
-      }),
-    };
+    if (!processor) {
+      throw new Error(`No processor found for platform: ${envelope.platform}, event: ${envelope.type}`);
+    }
 
-    await xaddObj(this.config.redis, scoredStream, scoredEvent, {
-      maxLen: { strategy: 'approx', count: 10000 }
-    });
-
-    console.log(`[worker] Published scored event to ${scoredStream}: ${result.finalScore.toFixed(3)}`);
+    // Process the event using the platform-specific processor
+    await processor.processEvent(envelope, this.persistence, this.orchestrator);
   }
 
   private async acknowledgeMessage(streamKey: string, id: string): Promise<void> {
