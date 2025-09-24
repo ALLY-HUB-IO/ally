@@ -96,7 +96,10 @@ export interface PayoutData {
 export interface PersistenceService {
   // User Management
   upsertUser(wallet: string, displayName?: string): Promise<User>;
+  updateUser(userId: string, updates: { displayName?: string; trust?: number }): Promise<User>;
+  getUserById(userId: string): Promise<User | null>;
   upsertPlatformUser(userId: string, platform: string, platformId: string, displayName?: string, avatarUrl?: string): Promise<PlatformUser>;
+  updatePlatformUser(platformUserId: string, updates: { displayName?: string; avatarUrl?: string }): Promise<PlatformUser>;
   getUserByWallet(wallet: string): Promise<User | null>;
   getPlatformUser(platform: string, platformId: string): Promise<PlatformUser | null>;
 
@@ -175,11 +178,31 @@ export class DatabasePersistenceService implements PersistenceService {
     });
   }
 
+  async updateUser(userId: string, updates: { displayName?: string; trust?: number }): Promise<User> {
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: updates
+    });
+  }
+
+  async getUserById(userId: string): Promise<User | null> {
+    return await this.prisma.user.findUnique({
+      where: { id: userId }
+    });
+  }
+
   async upsertPlatformUser(userId: string, platform: string, platformId: string, displayName?: string, avatarUrl?: string): Promise<PlatformUser> {
     return await this.prisma.platformUser.upsert({
       where: { platform_platformId: { platform, platformId } },
       create: { userId, platform, platformId, displayName, avatarUrl },
       update: { displayName, avatarUrl }
+    });
+  }
+
+  async updatePlatformUser(platformUserId: string, updates: { displayName?: string; avatarUrl?: string }): Promise<PlatformUser> {
+    return await this.prisma.platformUser.update({
+      where: { id: platformUserId },
+      data: updates
     });
   }
 
