@@ -204,6 +204,24 @@ export async function example() {
     'REPLY_TO'
   );
 
+  // Discord-specific details
+  await persistence.saveDiscordMessageDetail(
+    message.id,
+    'guild-123',
+    'channel-456',
+    undefined, // threadId (if in thread)
+    [{ title: 'Embed Title' }], // embeds
+    [{ id: 'att-1', url: 'https://example.com/file.png' }] // attachments
+  );
+
+  // Update Discord details (e.g., when thread is created)
+  await persistence.updateDiscordMessageDetail(message.id, {
+    threadId: 'thread-789'
+  });
+
+  // Get messages in a thread
+  const threadMessages = await persistence.getMessagesByThreadId('thread-789');
+
   // Metrics
   await persistence.saveMetricSnapshot({
     messageId: message.id,
@@ -337,6 +355,8 @@ The persistence service provides a clean interface for all database operations:
 
 #### Platform-Specific
 - `saveDiscordMessageDetail(messageId, guildId?, channelId?, threadId?, embeds?, attachments?)` - Save Discord-specific data
+- `updateDiscordMessageDetail(messageId, data)` - Update Discord-specific data (guildId, channelId, threadId, embeds, attachments)
+- `getMessagesByThreadId(threadId)` - Get all messages in a specific thread
 
 #### Ingest Management
 - `updateIngestCheckpoint(sourceId, checkpoint)` - Update ingestion state
@@ -360,10 +380,11 @@ The persistence service provides a clean interface for all database operations:
 
 - **Normalized Design**: Clean separation between users, platform accounts, and content
 - **Platform Agnostic**: Extensible design for Discord, Telegram, Twitter, etc.
-- **Rich Relationships**: Support for replies, quotes, retweets, mentions
-- **Engagement Tracking**: Per-message metrics over time
+- **Rich Relationships**: Support for replies, quotes, retweets, mentions, thread management
+- **Engagement Tracking**: Per-message metrics over time with immutable snapshots
 - **Reliable Ingestion**: Checkpoint system for resumable data processing
-- **Campaign System**: Token rewards with flexible criteria
+- **Campaign System**: Token rewards with flexible criteria and multi-platform support
+- **Thread Management**: Complete Discord thread lifecycle handling (creation, deletion, message relations)
 - **Audit Trail**: Complete event history preservation
 - **Type Safety**: Full TypeScript support with generated types
 
@@ -391,3 +412,4 @@ npx --yes prisma migrate reset
 - `20250828144151_add_events_raw_and_interactions` - Added EventsRaw and Interactions tables
 - `20250917150703_add_admin_features` - Added Admin, Campaign, Payout, SystemConfig tables
 - `20250924064336_update_metric_snapshot_and_add_missing_models` - Normalized schema with PlatformUser, Source, MessageRelation, DiscordMessageDetail, MetricSnapshot, IngestCheckpoint
+- `20250924120000_remove_interactions_table` - Removed redundant Interactions table, consolidated into enhanced Message model

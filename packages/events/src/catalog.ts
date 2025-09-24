@@ -6,6 +6,8 @@ export const EventType = {
   DISCORD_MESSAGE_DELETED: "platform.discord.message.deleted",
   DISCORD_REACTION_ADDED: "platform.discord.reaction.added",
   DISCORD_REACTION_REMOVED: "platform.discord.reaction.removed",
+  DISCORD_THREAD_CREATED: "platform.discord.thread.created",
+  DISCORD_THREAD_DELETED: "platform.discord.thread.deleted",
 } as const;
 
 export type EventName = typeof EventType[keyof typeof EventType];
