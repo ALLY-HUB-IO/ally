@@ -60,7 +60,6 @@ model Source {
   crawlConfig  Json?
   
   messages     Message[]
-  snapshots    MetricSnapshot[]
   checkpoints  IngestCheckpoint[]
   
   @@unique([platform, platformId])
@@ -88,6 +87,7 @@ model Message {
   relationsFrom MessageRelation[] @relation("from")
   relationsTo   MessageRelation[] @relation("to")
   discordDetails DiscordMessageDetail?
+  metricSnapshots MetricSnapshot[]
   
   @@unique([sourceId, externalId])
   @@index([authorId, createdAt])
@@ -108,6 +108,7 @@ model Reaction {
   platformUserId String
   platformUser PlatformUser @relation(fields: [platformUserId], references: [id])
   
+  @@unique([messageId, platformUserId, kind])
   @@index([messageId, kind])
   @@index([platformUserId, kind])
   @@index([messageId, platformUserId])
@@ -158,22 +159,18 @@ model DiscordMessageDetail {
 }
 
 model MetricSnapshot {
-  id           String     @id @default(cuid())
-  createdAt    DateTime   @default(now())
-  sourceId     String
-  source       Source     @relation(fields: [sourceId], references: [id])
-  
-  messageCount Int        @default(0)
-  userCount    Int        @default(0)
-  avgScore     Float?
-  totalScore   Float      @default(0)
-  
-  periodStart  DateTime
-  periodEnd    DateTime
-  
-  @@index([sourceId, createdAt])
-  @@index([periodStart, periodEnd])
-  @@index([sourceId, periodStart])
+  id          String   @id @default(cuid())
+  messageId   String
+  message     Message  @relation(fields: [messageId], references: [id])
+  capturedAt  DateTime @default(now())
+  likeCount   Int?
+  replyCount  Int?
+  repostCount Int?
+  quoteCount  Int?
+  viewCount   Int?
+  meta        Json?
+
+  @@index([messageId, capturedAt])
 }
 
 model IngestCheckpoint {
