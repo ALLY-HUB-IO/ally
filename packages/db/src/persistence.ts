@@ -98,8 +98,9 @@ export interface PersistenceService {
   upsertUser(wallet: string, displayName?: string): Promise<User>;
   updateUser(userId: string, updates: { displayName?: string; trust?: number }): Promise<User>;
   getUserById(userId: string): Promise<User | null>;
-  upsertPlatformUser(userId: string, platform: string, platformId: string, displayName?: string, avatarUrl?: string): Promise<PlatformUser>;
+  upsertPlatformUser(userId: string | undefined, platform: string, platformId: string, displayName?: string, avatarUrl?: string): Promise<PlatformUser>;
   updatePlatformUser(platformUserId: string, updates: { displayName?: string; avatarUrl?: string }): Promise<PlatformUser>;
+  linkPlatformUserToUser(platformUserId: string, userId: string): Promise<PlatformUser>;
   getUserByWallet(wallet: string): Promise<User | null>;
   getPlatformUser(platform: string, platformId: string): Promise<PlatformUser | null>;
 
@@ -191,10 +192,21 @@ export class DatabasePersistenceService implements PersistenceService {
     });
   }
 
-  async upsertPlatformUser(userId: string, platform: string, platformId: string, displayName?: string, avatarUrl?: string): Promise<PlatformUser> {
+  async upsertPlatformUser(userId: string | undefined, platform: string, platformId: string, displayName?: string, avatarUrl?: string): Promise<PlatformUser> {
+    const createData: any = { 
+      platform, 
+      platformId, 
+      displayName, 
+      avatarUrl 
+    };
+    
+    if (userId) {
+      createData.userId = userId;
+    }
+    
     return await this.prisma.platformUser.upsert({
       where: { platform_platformId: { platform, platformId } },
-      create: { userId, platform, platformId, displayName, avatarUrl },
+      create: createData,
       update: { displayName, avatarUrl }
     });
   }
@@ -203,6 +215,13 @@ export class DatabasePersistenceService implements PersistenceService {
     return await this.prisma.platformUser.update({
       where: { id: platformUserId },
       data: updates
+    });
+  }
+
+  async linkPlatformUserToUser(platformUserId: string, userId: string): Promise<PlatformUser> {
+    return await this.prisma.platformUser.update({
+      where: { id: platformUserId },
+      data: { userId }
     });
   }
 
