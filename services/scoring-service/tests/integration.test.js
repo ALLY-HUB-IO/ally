@@ -19,8 +19,8 @@ async function runIntegrationTest() {
     await redis.ping();
     console.log('✅ Redis connected');
     
-    // Test 1: Publish a valid message
-    console.log('\n📝 Test 1: Publishing valid message...');
+    // Test 1: Publish a valid Discord message
+    console.log('\n📝 Test 1: Publishing valid Discord message...');
     const validMessage = {
       version: 'v1',
       idempotencyKey: `test-valid-${Date.now()}`,
@@ -37,8 +37,11 @@ async function runIntegrationTest() {
         content: 'This is a valid test message for scoring!',
         author: {
           id: 'test-user',
-          username: 'testuser'
+          username: 'testuser',
+          displayName: 'Test User'
         },
+        channelId: 'test-channel',
+        guildId: 'test-guild',
         createdAt: new Date().toISOString()
       })
     };
@@ -50,28 +53,38 @@ async function runIntegrationTest() {
     
     console.log(`✅ Published valid message: ${messageId}`);
     
-    // Test 2: Publish an unsupported message type
-    console.log('\n📝 Test 2: Publishing unsupported message type...');
-    const unsupportedMessage = {
+    // Test 2: Publish a Discord message update (should be processed now)
+    console.log('\n📝 Test 2: Publishing Discord message update...');
+    const updateMessage = {
       version: 'v1',
-      idempotencyKey: `test-unsupported-${Date.now()}`,
+      idempotencyKey: `test-update-${Date.now()}`,
       projectId: PROJECT_ID,
       platform: 'discord',
       type: 'platform.discord.message.updated',
       ts: new Date().toISOString(),
-      source: JSON.stringify({}),
+      source: JSON.stringify({
+        guildId: 'test-guild',
+        channelId: 'test-channel'
+      }),
       payload: JSON.stringify({
-        externalId: 'test-message-unsupported',
-        content: 'This should be ignored',
-        createdAt: new Date().toISOString()
+        externalId: 'test-message-update',
+        content: 'This is an updated message for scoring!',
+        author: {
+          id: 'test-user',
+          username: 'testuser',
+          displayName: 'Test User'
+        },
+        channelId: 'test-channel',
+        guildId: 'test-guild',
+        editedAt: new Date().toISOString()
       })
     };
     
-    const unsupportedId = await xaddObj(redis, stream, unsupportedMessage, {
+    const updateId = await xaddObj(redis, stream, updateMessage, {
       maxLen: { strategy: 'approx', count: 1000 }
     });
     
-    console.log(`✅ Published unsupported message: ${unsupportedId}`);
+    console.log(`✅ Published update message: ${updateId}`);
     
     // Test 3: Publish a malformed message (missing content)
     console.log('\n📝 Test 3: Publishing malformed message...');
@@ -82,9 +95,18 @@ async function runIntegrationTest() {
       platform: 'discord',
       type: 'platform.discord.message.created',
       ts: new Date().toISOString(),
-      source: JSON.stringify({}),
+      source: JSON.stringify({
+        guildId: 'test-guild',
+        channelId: 'test-channel'
+      }),
       payload: JSON.stringify({
-        externalId: 'test-message-malformed'
+        externalId: 'test-message-malformed',
+        author: {
+          id: 'test-user',
+          username: 'testuser'
+        },
+        channelId: 'test-channel',
+        guildId: 'test-guild'
         // Missing content - should cause error and land in DLQ
       })
     };
@@ -95,24 +117,64 @@ async function runIntegrationTest() {
     
     console.log(`✅ Published malformed message: ${malformedId}`);
     
-    // Test 4: Publish a message with invalid JSON in payload
-    console.log('\n📝 Test 4: Publishing message with invalid JSON...');
-    const invalidJsonMessage = {
+    // Test 4: Publish a Discord reaction event
+    console.log('\n📝 Test 4: Publishing Discord reaction event...');
+    const reactionMessage = {
       version: 'v1',
-      idempotencyKey: `test-invalid-json-${Date.now()}`,
+      idempotencyKey: `test-reaction-${Date.now()}`,
       projectId: PROJECT_ID,
       platform: 'discord',
-      type: 'platform.discord.message.created',
+      type: 'platform.discord.reaction.added',
       ts: new Date().toISOString(),
-      source: JSON.stringify({}),
-      payload: '{"externalId": "test-invalid-json", "content": "test", "invalid": }' // Invalid JSON
+      source: JSON.stringify({
+        guildId: 'test-guild',
+        channelId: 'test-channel'
+      }),
+      payload: JSON.stringify({
+        externalId: 'test-reaction-123',
+        messageId: 'test-message-valid',
+        author: {
+          id: 'test-user-2',
+          username: 'testuser2',
+          displayName: 'Test User 2'
+        },
+        emoji: {
+          name: '👍',
+          id: null
+        },
+        channelId: 'test-channel',
+        guildId: 'test-guild',
+        createdAt: new Date().toISOString()
+      })
     };
     
-    const invalidJsonId = await xaddObj(redis, stream, invalidJsonMessage, {
+    const reactionId = await xaddObj(redis, stream, reactionMessage, {
       maxLen: { strategy: 'approx', count: 1000 }
     });
     
-    console.log(`✅ Published invalid JSON message: ${invalidJsonId}`);
+    console.log(`✅ Published reaction message: ${reactionId}`);
+    
+    // Test 5: Publish an unsupported platform event
+    console.log('\n📝 Test 5: Publishing unsupported platform event...');
+    const unsupportedPlatformMessage = {
+      version: 'v1',
+      idempotencyKey: `test-unsupported-platform-${Date.now()}`,
+      projectId: PROJECT_ID,
+      platform: 'twitter', // Unsupported platform
+      type: 'platform.twitter.tweet.created',
+      ts: new Date().toISOString(),
+      source: JSON.stringify({}),
+      payload: JSON.stringify({
+        externalId: 'test-tweet-123',
+        content: 'This should be ignored - unsupported platform'
+      })
+    };
+    
+    const unsupportedPlatformId = await xaddObj(redis, stream, unsupportedPlatformMessage, {
+      maxLen: { strategy: 'approx', count: 1000 }
+    });
+    
+    console.log(`✅ Published unsupported platform message: ${unsupportedPlatformId}`);
     
     // Wait for processing
     console.log('\n⏳ Waiting 10 seconds for worker to process messages...');
