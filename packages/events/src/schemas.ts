@@ -5,6 +5,7 @@ export const DiscordAuthor = z.object({
   username: z.string().optional(),
   discriminator: z.string().optional(),
   displayName: z.string().optional(),
+  avatarUrl: z.string().optional(),
   isBot: z.boolean().optional(),
   roles: z.array(z.string()).optional(),
 });
@@ -28,6 +29,11 @@ export const DiscordMessageBase = z.object({
 
 export const DiscordMessageCreated = DiscordMessageBase.extend({
   createdAt: z.string(),
+  referencedMessage: z.object({
+    id: z.string(),
+    channelId: z.string(),
+    guildId: z.string().nullable().optional(),
+  }).optional(),
 });
 
 export const DiscordMessageUpdated = DiscordMessageBase.extend({
