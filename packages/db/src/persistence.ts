@@ -132,6 +132,8 @@ export interface PersistenceService {
 
   // Platform-Specific Details
   saveDiscordMessageDetail(messageId: string, guildId?: string, channelId?: string, threadId?: string, embeds?: any, attachments?: any): Promise<DiscordMessageDetail>;
+  updateDiscordMessageDetail(messageId: string, data: { guildId?: string; channelId?: string; threadId?: string; embeds?: any; attachments?: any }): Promise<DiscordMessageDetail>;
+  getMessagesByThreadId(threadId: string): Promise<Message[]>;
 
   // Ingest Management
   updateIngestCheckpoint(sourceId: string, checkpoint: IngestCheckpointData): Promise<IngestCheckpoint>;
@@ -392,6 +394,26 @@ export class DatabasePersistenceService implements PersistenceService {
       where: { messageId },
       create: { messageId, guildId, channelId, threadId, embeds, attachments },
       update: { guildId, channelId, threadId, embeds, attachments }
+    });
+  }
+
+  async updateDiscordMessageDetail(messageId: string, data: { guildId?: string; channelId?: string; threadId?: string; embeds?: any; attachments?: any }): Promise<DiscordMessageDetail> {
+    return await this.prisma.discordMessageDetail.update({
+      where: { messageId },
+      data
+    });
+  }
+
+  async getMessagesByThreadId(threadId: string): Promise<Message[]> {
+    return await this.prisma.message.findMany({
+      where: {
+        discordDetails: {
+          threadId: threadId
+        }
+      },
+      include: {
+        discordDetails: true
+      }
     });
   }
 
