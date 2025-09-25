@@ -14,7 +14,7 @@ COPY services/sentiment-service/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 ARG SPACY_MODEL=en_core_web_sm
-RUN python -m spacy download ${SPACY_MODEL}
+RUN pip install https://github.com/explosion/spacy-models/releases/download/${SPACY_MODEL}-3.7.0/${SPACY_MODEL}-3.7.0.tar.gz
 
 COPY services/sentiment-service/app ./app
 COPY services/sentiment-service/uvicorn_start.sh ./uvicorn_start.sh
