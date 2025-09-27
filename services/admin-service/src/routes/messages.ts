@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import Joi from 'joi';
+import * as Joi from 'joi';
 import { prisma } from '../db/client';
 
 const router = Router();
@@ -20,7 +20,7 @@ const messageQuerySchema = Joi.object({
   dateTo: Joi.date().optional()
 });
 
-// GET /api/messages - Get scored messages with filtering
+// GET /api/messages - Get messages with filtering and live feed capability
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { error, value } = messageQuerySchema.validate(req.query);
@@ -49,21 +49,17 @@ router.get('/', async (req: Request, res: Response) => {
     
     const offset = (page - 1) * limit;
 
-    // Build where clause for interactions
+    // Build where clause for messages
     const where: any = {};
     
     if (search) {
       where.content = { contains: search, mode: 'insensitive' };
     }
 
-    if (minScore !== undefined || maxScore !== undefined) {
-      where.score = {};
-      if (minScore !== undefined) where.score.gte = minScore;
-      if (maxScore !== undefined) where.score.lte = maxScore;
-    }
-
     if (platform) {
-      where.platform = platform;
+      where.source = {
+        platform: platform
+      };
     }
 
     if (projectId) {
@@ -80,55 +76,104 @@ router.get('/', async (req: Request, res: Response) => {
       if (dateTo) where.createdAt.lte = dateTo;
     }
 
-    // Get interactions (scored messages)
-    const interactions = await prisma.interactions.findMany({
+    // For score sorting, we need to fetch more messages to calculate scores and then sort
+    const fetchLimit = sortBy === 'score' ? Math.max(limit * 3, 100) : limit;
+    const fetchOffset = sortBy === 'score' ? 0 : offset;
+
+    // Get messages with their scores and reactions
+    const messages = await prisma.message.findMany({
       where,
-      orderBy: { [sortBy]: sortOrder },
-      skip: offset,
-      take: limit
-    });
-
-    // Get total count for pagination
-    const totalCount = await prisma.interactions.count({ where });
-
-    // Get additional message details from the Message table for interactions that have external IDs
-    const enrichedInteractions = await Promise.all(
-      interactions.map(async (interaction) => {
-        // Try to find the corresponding message in the Message table
-        const message = await prisma.message.findUnique({
-          where: { externalId: interaction.externalId },
+      include: {
+        author: {
+          select: { 
+            id: true, 
+            displayName: true, 
+            platform: true,
+            user: {
+              select: { id: true, wallet: true, trust: true }
+            }
+          }
+        },
+        source: {
+          select: { platform: true, name: true }
+        },
+        scores: {
+          orderBy: { createdAt: 'desc' },
           include: {
-            author: {
-              select: { id: true, identity: true, displayName: true, trust: true }
-            },
-            scores: {
-              orderBy: { createdAt: 'desc' }
-            },
-            reactions: {
-              include: {
+            platformUser: {
+              select: {
+                id: true,
+                displayName: true,
+                platform: true,
                 user: {
-                  select: { id: true, identity: true, displayName: true }
+                  select: {
+                    id: true,
+                    wallet: true,
+                    trust: true
+                  }
                 }
               }
             }
           }
-        });
+        },
+        reactions: {
+          include: {
+            platformUser: {
+              select: { id: true, displayName: true, platform: true }
+            }
+          }
+        }
+      },
+      orderBy: sortBy === 'score' ? { createdAt: 'desc' } : { [sortBy]: sortOrder },
+      skip: fetchOffset,
+      take: fetchLimit
+    });
 
-        return {
-          ...interaction,
-          message,
-          // Calculate score breakdown if available
-          scoreBreakdown: message?.scores.reduce((acc, score) => {
-            acc[score.kind] = score.value;
-            return acc;
-          }, {} as Record<string, number>) || {}
-        };
-      })
-    );
+    // Get total count for pagination
+    const totalCount = await prisma.message.count({ where });
+
+    // Calculate score breakdown and average score for each message
+    const enrichedMessages = messages.map(message => {
+      const scoreBreakdown = message.scores.reduce((acc, score) => {
+        acc[score.kind] = score.value;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const avgScore = message.scores.length > 0 
+        ? message.scores.reduce((sum, score) => sum + score.value, 0) / message.scores.length 
+        : 0;
+
+      return {
+        ...message,
+        score: avgScore,
+        scoreBreakdown,
+        rationale: `Average score based on ${message.scores.length} scoring factors`,
+        platform: message.source?.platform || 'unknown'
+      };
+    });
+
+    // Sort by score if requested (after enrichment)
+    if (sortBy === 'score') {
+      enrichedMessages.sort((a, b) => {
+        return sortOrder === 'asc' ? a.score - b.score : b.score - a.score;
+      });
+    }
+
+    // Filter by score range if specified
+    const filteredMessages = enrichedMessages.filter(message => {
+      if (minScore !== undefined && message.score < minScore) return false;
+      if (maxScore !== undefined && message.score > maxScore) return false;
+      return true;
+    });
+
+    // Apply pagination after sorting and filtering (for score sorting)
+    const paginatedMessages = sortBy === 'score' 
+      ? filteredMessages.slice(offset, offset + limit)
+      : filteredMessages;
 
     res.json({
       ok: true,
-      data: enrichedInteractions,
+      data: paginatedMessages,
       pagination: {
         page,
         limit,
@@ -145,57 +190,273 @@ router.get('/', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/messages/live-feed - Get recent messages for live feed
+router.get('/live-feed', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const since = req.query.since ? new Date(req.query.since as string) : new Date(Date.now() - 5 * 60 * 1000); // Default: last 5 minutes
+
+    const messages = await prisma.message.findMany({
+      where: {
+        createdAt: { gte: since }
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            displayName: true,
+            platform: true,
+            user: {
+              select: { id: true, wallet: true, trust: true }
+            }
+          }
+        },
+        source: {
+          select: { platform: true, name: true }
+        },
+        scores: {
+          orderBy: { createdAt: 'desc' },
+          take: 5, // Limit scores for performance
+          include: {
+            platformUser: {
+              select: {
+                id: true,
+                displayName: true,
+                platform: true,
+                user: {
+                  select: {
+                    id: true,
+                    wallet: true,
+                    trust: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        reactions: {
+          include: {
+            platformUser: {
+              select: { id: true, displayName: true, platform: true }
+            }
+          },
+          take: 10 // Limit reactions for performance
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit
+    });
+
+    const enrichedMessages = messages.map(message => {
+      const scoreBreakdown = message.scores.reduce((acc, score) => {
+        acc[score.kind] = score.value;
+        return acc;
+      }, {} as Record<string, number>);
+
+      const avgScore = message.scores.length > 0
+        ? message.scores.reduce((sum, score) => sum + score.value, 0) / message.scores.length
+        : null;
+
+      return {
+        ...message,
+        score: avgScore,
+        scoreBreakdown,
+        rationale: message.scores.length > 0 
+          ? `Average score based on ${message.scores.length} scoring factors`
+          : 'Message is being analyzed for sentiment',
+        platform: message.source?.platform || 'unknown'
+      };
+    });
+
+    res.json({
+      ok: true,
+      data: enrichedMessages,
+      meta: {
+        since: since.toISOString(),
+        count: enrichedMessages.length,
+        timestamp: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Get live feed error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// GET /api/messages/critical - Get critical messages (lowest rated in last 24h)
+router.get('/critical', async (req: Request, res: Response) => {
+  try {
+    // Get messages from the last 24 hours
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Fetch messages from last 24h with their scores
+    const messages = await prisma.message.findMany({
+      where: {
+        createdAt: { gte: yesterday },
+        isDeleted: false
+      },
+      include: {
+        author: {
+          select: { 
+            id: true, 
+            displayName: true, 
+            platform: true,
+            user: {
+              select: { id: true, wallet: true, trust: true }
+            }
+          }
+        },
+        source: {
+          select: { platform: true, name: true }
+        },
+        scores: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            platformUser: {
+              select: {
+                id: true,
+                displayName: true,
+                platform: true,
+                user: {
+                  select: {
+                    id: true,
+                    wallet: true,
+                    trust: true
+                  }
+                }
+              }
+            }
+          }
+        },
+        discordDetails: true
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500 // Fetch more messages to ensure we get enough with low scores
+    });
+
+    // Use only the latest score for each message
+    const messagesWithLatestScores = messages.map(message => {
+      // Get the latest score (first in the array since they're ordered by createdAt desc)
+      const latestScore = message.scores.length > 0 ? message.scores[0] : null;
+      
+      if (latestScore && latestScore.value < 0.4) {
+        return {
+          ...message,
+          score: latestScore.value,
+          platform: message.source?.platform || 'unknown',
+          scoreId: latestScore.id,
+          scoreCreatedAt: latestScore.createdAt
+        };
+      }
+      return null;
+    }).filter(Boolean); // Remove null entries
+
+    console.log(`Critical endpoint: Messages with critical latest scores: ${messagesWithLatestScores.length}`);
+
+    console.log(`Critical endpoint: Found ${messages.length} messages from last 24h`);
+    console.log(`Critical endpoint: Messages with multiple scores: ${messages.filter(m => m.scores.length > 1).length}`);
+    
+    // Use messages with latest critical scores
+    const criticalMessages = messagesWithLatestScores
+      .sort((a, b) => a.score - b.score) // Sort by lowest score first
+      .slice(0, 5); // Take only top 5 critical messages
+
+    console.log(`Critical endpoint: Critical messages found: ${criticalMessages.length}`);
+    if (criticalMessages.length > 0) {
+      console.log(`Critical endpoint: Score range: ${criticalMessages[0].score} to ${criticalMessages[criticalMessages.length - 1].score}`);
+    }
+
+    res.json({
+      ok: true,
+      data: criticalMessages,
+      count: criticalMessages.length
+    });
+  } catch (error) {
+    console.error('Get critical messages error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
 // GET /api/messages/:id - Get detailed message information
 router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Try to find in both Interactions and Message tables
-    const [interaction, message] = await Promise.all([
-      prisma.interactions.findFirst({
-        where: { externalId: id }
-      }),
-      prisma.message.findUnique({
-        where: { id },
-        include: {
-          author: {
-            select: { id: true, identity: true, displayName: true, trust: true }
-          },
-          scores: {
-            orderBy: { createdAt: 'desc' }
-          },
-          reactions: {
-            include: {
-              user: {
-                select: { id: true, identity: true, displayName: true }
+    const message = await prisma.message.findUnique({
+      where: { id },
+      include: {
+        author: {
+          select: { 
+            id: true, 
+            displayName: true, 
+            platform: true,
+            user: {
+              select: { id: true, wallet: true, trust: true }
+            }
+          }
+        },
+        source: {
+          select: { platform: true, name: true }
+        },
+        scores: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            platformUser: {
+              select: {
+                id: true,
+                displayName: true,
+                platform: true,
+                user: {
+                  select: {
+                    id: true,
+                    wallet: true,
+                    trust: true
+                  }
+                }
               }
             }
           }
+        },
+        reactions: {
+          include: {
+            platformUser: {
+              select: { id: true, displayName: true, platform: true }
+            }
+          }
         }
-      })
-    ]);
+      }
+    });
 
-    if (!interaction && !message) {
+    if (!message) {
       return res.status(404).json({
         ok: false,
         error: 'Message not found'
       });
     }
 
-    // Combine data from both sources
+    // Calculate score breakdown and average score
+    const scoreBreakdown = message.scores.reduce((acc, score) => {
+      acc[score.kind] = score.value;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const avgScore = message.scores.length > 0 
+      ? message.scores.reduce((sum, score) => sum + score.value, 0) / message.scores.length 
+      : 0;
+
     const result = {
-      id: message?.id || interaction?.id,
-      externalId: message?.externalId || interaction?.externalId,
-      content: message?.content || interaction?.content,
-      author: message?.author || null,
-      platform: interaction?.platform || 'unknown',
-      projectId: interaction?.projectId || 'unknown',
-      score: interaction?.score || 0,
-      rationale: interaction?.rationale || '',
-      createdAt: message?.createdAt || interaction?.createdAt,
-      updatedAt: message?.updatedAt || interaction?.editedAt,
-      scores: message?.scores || [],
-      reactions: message?.reactions || []
+      ...message,
+      score: avgScore,
+      scoreBreakdown,
+      rationale: `Average score based on ${message.scores.length} scoring factors`,
+      platform: message.source?.platform || 'unknown'
     };
 
     res.json({
@@ -218,7 +479,7 @@ router.get('/stats/summary', async (req: Request, res: Response) => {
     // Get basic stats
     const [
       totalMessages,
-      totalInteractions,
+      totalScores,
       avgScore,
       scoreDistribution,
       platformStats,
@@ -227,41 +488,40 @@ router.get('/stats/summary', async (req: Request, res: Response) => {
       // Total messages
       prisma.message.count(),
       
-      // Total interactions
-      prisma.interactions.count(),
+      // Total scores
+      prisma.score.count(),
       
       // Average score
-      prisma.interactions.aggregate({
-        _avg: { score: true },
-        _min: { score: true },
-        _max: { score: true }
+      prisma.score.aggregate({
+        _avg: { value: true },
+        _min: { value: true },
+        _max: { value: true }
       }),
       
       // Score distribution (buckets)
       prisma.$queryRaw`
         SELECT 
           CASE 
-            WHEN score >= 0.8 THEN 'high'
-            WHEN score >= 0.6 THEN 'medium-high'
-            WHEN score >= 0.4 THEN 'medium'
-            WHEN score >= 0.2 THEN 'medium-low'
+            WHEN value >= 0.8 THEN 'high'
+            WHEN value >= 0.6 THEN 'medium-high'
+            WHEN value >= 0.4 THEN 'medium'
+            WHEN value >= 0.2 THEN 'medium-low'
             ELSE 'low'
           END as bucket,
           COUNT(*) as count
-        FROM "Interactions"
+        FROM "Score"
         GROUP BY bucket
         ORDER BY bucket
       `,
       
-      // Platform statistics
-      prisma.interactions.groupBy({
+      // Platform statistics - get from source table
+      prisma.source.groupBy({
         by: ['platform'],
-        _count: { id: true },
-        _avg: { score: true }
+        _count: { id: true }
       }),
       
       // Recent activity (last 7 days)
-      prisma.interactions.count({
+      prisma.message.count({
         where: {
           createdAt: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -274,10 +534,10 @@ router.get('/stats/summary', async (req: Request, res: Response) => {
       ok: true,
       data: {
         totalMessages,
-        totalInteractions,
-        averageScore: avgScore._avg.score || 0,
-        minScore: avgScore._min.score || 0,
-        maxScore: avgScore._max.score || 0,
+        totalScores,
+        averageScore: avgScore._avg.value || 0,
+        minScore: avgScore._min.value || 0,
+        maxScore: avgScore._max.value || 0,
         scoreDistribution,
         platformStats,
         recentActivity
