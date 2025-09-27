@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import Joi from 'joi';
+import * as Joi from 'joi';
 import { prisma } from '../db/client';
 import { AuthenticatedRequest } from '../middleware/auth';
 

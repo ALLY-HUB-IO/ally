@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import Joi from 'joi';
+import * as Joi from 'joi';
 import { prisma } from '../db/client';
 
 const router = Router();
@@ -35,7 +35,7 @@ router.get('/rankings', async (req: Request, res: Response) => {
     
     if (search) {
       where.OR = [
-        { identity: { contains: search, mode: 'insensitive' } },
+        { wallet: { contains: search, mode: 'insensitive' } },
         { displayName: { contains: search, mode: 'insensitive' } }
       ];
     }
@@ -51,16 +51,15 @@ router.get('/rankings', async (req: Request, res: Response) => {
       where,
       select: {
         id: true,
-        identity: true,
+        wallet: true,
         displayName: true,
         trust: true,
         createdAt: true,
         updatedAt: true,
         _count: {
           select: {
-            messages: true,
-            scores: true,
-            reactions: true
+            platformUsers: true,
+            payouts: true
           }
         }
       },
@@ -75,9 +74,18 @@ router.get('/rankings', async (req: Request, res: Response) => {
     // Calculate additional stats for each user
     const usersWithStats = await Promise.all(
       users.map(async (user) => {
-        // Get average score for this user
-        const avgScoreResult = await prisma.score.aggregate({
+        // Get average score for this user's platform users
+        const platformUserIds = await prisma.platformUser.findMany({
           where: { userId: user.id },
+          select: { id: true }
+        });
+
+        const avgScoreResult = await prisma.score.aggregate({
+          where: { 
+            platformUserId: { 
+              in: platformUserIds.map(pu => pu.id) 
+            } 
+          },
           _avg: { value: true }
         });
 
@@ -87,8 +95,21 @@ router.get('/rankings', async (req: Request, res: Response) => {
         
         const recentMessages = await prisma.message.count({
           where: {
-            authorId: user.id,
+            authorId: { in: platformUserIds.map(pu => pu.id) },
             createdAt: { gte: weekAgo }
+          }
+        });
+
+        // Get total messages and scores for this user
+        const totalMessages = await prisma.message.count({
+          where: {
+            authorId: { in: platformUserIds.map(pu => pu.id) }
+          }
+        });
+
+        const totalScores = await prisma.score.count({
+          where: {
+            platformUserId: { in: platformUserIds.map(pu => pu.id) }
           }
         });
 
@@ -96,9 +117,9 @@ router.get('/rankings', async (req: Request, res: Response) => {
           ...user,
           avgScore: avgScoreResult._avg.value || 0,
           recentMessages,
-          totalMessages: user._count.messages,
-          totalScores: user._count.scores,
-          totalReactions: user._count.reactions
+          totalMessages,
+          totalScores,
+          totalReactions: 0 // We'll calculate this if needed
         };
       })
     );
@@ -130,19 +151,22 @@ router.get('/:id', async (req: Request, res: Response) => {
     const user = await prisma.user.findUnique({
       where: { id },
       include: {
-        messages: {
-          take: 10,
-          orderBy: { createdAt: 'desc' },
+        platformUsers: {
           include: {
-            scores: true,
-            reactions: true
+            messages: {
+              take: 10,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                scores: true,
+                reactions: true
+              }
+            }
           }
         },
         _count: {
           select: {
-            messages: true,
-            scores: true,
-            reactions: true
+            platformUsers: true,
+            payouts: true
           }
         }
       }
@@ -155,9 +179,14 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
+    // Get platform user IDs for this user
+    const platformUserIds = user.platformUsers.map(pu => pu.id);
+
     // Get additional stats
     const avgScoreResult = await prisma.score.aggregate({
-      where: { userId: user.id },
+      where: { 
+        platformUserId: { in: platformUserIds } 
+      },
       _avg: { value: true },
       _min: { value: true },
       _max: { value: true }
@@ -166,7 +195,9 @@ router.get('/:id', async (req: Request, res: Response) => {
     // Get score distribution
     const scoreDistribution = await prisma.score.groupBy({
       by: ['kind'],
-      where: { userId: user.id },
+      where: { 
+        platformUserId: { in: platformUserIds } 
+      },
       _avg: { value: true },
       _count: { value: true }
     });
@@ -177,7 +208,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     
     const recentActivity = await prisma.message.count({
       where: {
-        authorId: user.id,
+        authorId: { in: platformUserIds },
         createdAt: { gte: monthAgo }
       }
     });
@@ -226,18 +257,42 @@ router.get('/:id/messages', async (req: Request, res: Response) => {
       });
     }
 
+    // Get platform user IDs for this user
+    const platformUserIds = await prisma.platformUser.findMany({
+      where: { userId: id },
+      select: { id: true }
+    });
+
+    if (platformUserIds.length === 0) {
+      return res.json({
+        ok: true,
+        data: [],
+        pagination: {
+          page,
+          limit,
+          total: 0,
+          pages: 0
+        }
+      });
+    }
+
     const messages = await prisma.message.findMany({
-      where: { authorId: id },
+      where: { 
+        authorId: { in: platformUserIds.map(pu => pu.id) } 
+      },
       include: {
         scores: {
           orderBy: { createdAt: 'desc' }
         },
         reactions: {
           include: {
-            user: {
-              select: { id: true, identity: true, displayName: true }
+            platformUser: {
+              select: { id: true, displayName: true, platform: true }
             }
           }
+        },
+        author: {
+          select: { id: true, displayName: true, platform: true }
         }
       },
       orderBy: { createdAt: 'desc' },
@@ -246,7 +301,9 @@ router.get('/:id/messages', async (req: Request, res: Response) => {
     });
 
     const totalCount = await prisma.message.count({
-      where: { authorId: id }
+      where: { 
+        authorId: { in: platformUserIds.map(pu => pu.id) } 
+      }
     });
 
     res.json({
