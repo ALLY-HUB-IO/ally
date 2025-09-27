@@ -419,6 +419,14 @@ export class DiscordEventProcessor implements PlatformEventProcessor {
     return 'very positive';
   }
 
+  private mapValueToLabel(score: number): string {
+    if (score <= 0.2) return 'very low';
+    if (score <= 0.4) return 'low';
+    if (score <= 0.6) return 'medium';
+    if (score <= 0.8) return 'high';
+    return 'very high';
+  }
+
   /**
    * Extracts numeric score from breakdown object
    */
@@ -457,7 +465,7 @@ export class DiscordEventProcessor implements PlatformEventProcessor {
       // Value component details
       value: {
         score: valueScore,
-        label: this.mapScoreToLabel(valueScore),
+        label: this.mapValueToLabel(parseFloat(valueScore.toString())),
         weight: result.breakdown.value.weight || 0.5,
         weightedScore: result.breakdown.value.weightedScore || valueScore * 0.5,
         model: result.metadata.models.value,
