@@ -15,13 +15,11 @@ import {
   Avatar,
   Menu,
   MenuItem,
-  Divider,
   Badge,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
-  People as PeopleIcon,
   Message as MessageIcon,
   Campaign as CampaignIcon,
   Payment as PaymentIcon,
@@ -29,7 +27,6 @@ import {
   Logout,
   Notifications as NotificationsIcon,
   Storage as StorageIcon,
-  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -82,16 +79,21 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
               width: 32,
               height: 32,
               borderRadius: '8px',
-              background: 'linear-gradient(135deg, #7B2CBF 0%, #9D4EDD 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: 'white',
-              fontWeight: 'bold',
-              fontSize: '1.2rem',
+              overflow: 'hidden',
             }}
           >
-            A
+            <img
+              src="/images/logo-ally.png"
+              alt="ALLY Logo"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+              }}
+            />
           </Box>
           <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, color: '#2D3748' }}>
             ALLY HUB
