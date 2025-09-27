@@ -7,6 +7,7 @@ import {
   Payout, 
   OverviewStats, 
   ActivityData,
+  LeaderboardData,
   ApiResponse,
   PaginatedResponse,
   LoginForm,
@@ -109,11 +110,11 @@ class ApiService {
   }
 
   async getUser(id: string): Promise<User> {
-    const response: AxiosResponse<ApiResponse<{ data: User }>> = 
+    const response: AxiosResponse<ApiResponse<User>> = 
       await this.api.get(`/users/${id}`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get user');
   }
@@ -148,23 +149,42 @@ class ApiService {
   }
 
   async getMessage(id: string): Promise<Message> {
-    const response: AxiosResponse<ApiResponse<{ data: Message }>> = 
+    const response: AxiosResponse<ApiResponse<Message>> = 
       await this.api.get(`/messages/${id}`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get message');
   }
 
   async getMessageStats(): Promise<any> {
-    const response: AxiosResponse<ApiResponse<{ data: any }>> = 
+    const response: AxiosResponse<ApiResponse<any>> = 
       await this.api.get('/messages/stats/summary');
     
     if (response.data.ok && response.data.data) {
       return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get message stats');
+  }
+
+  // Live feed for real-time message updates
+  async getLiveFeed(params?: {
+    limit?: number;
+    since?: string;
+  }): Promise<{ data: Message[]; meta: any }> {
+    const response: AxiosResponse<ApiResponse<Message[]>> = 
+      await this.api.get('/messages/live-feed', { params });
+    
+    if (response.data.ok && response.data.data) {
+      // Backend returns { ok: true, data: [...messages], meta: {...} }
+      // We need to restructure it to match the expected format
+      return {
+        data: response.data.data,
+        meta: (response.data as any).meta || {}
+      };
+    }
+    throw new Error(response.data.error || 'Failed to get live feed');
   }
 
   // Campaigns
@@ -182,31 +202,31 @@ class ApiService {
   }
 
   async getCampaign(id: string): Promise<Campaign> {
-    const response: AxiosResponse<ApiResponse<{ data: Campaign }>> = 
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
       await this.api.get(`/campaigns/${id}`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get campaign');
   }
 
   async createCampaign(campaign: CampaignForm): Promise<Campaign> {
-    const response: AxiosResponse<ApiResponse<{ data: Campaign }>> = 
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
       await this.api.post('/campaigns', campaign);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to create campaign');
   }
 
   async updateCampaign(id: string, campaign: Partial<CampaignForm>): Promise<Campaign> {
-    const response: AxiosResponse<ApiResponse<{ data: Campaign }>> = 
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
       await this.api.put(`/campaigns/${id}`, campaign);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to update campaign');
   }
@@ -221,21 +241,21 @@ class ApiService {
   }
 
   async activateCampaign(id: string): Promise<Campaign> {
-    const response: AxiosResponse<ApiResponse<{ data: Campaign }>> = 
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
       await this.api.post(`/campaigns/${id}/activate`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to activate campaign');
   }
 
   async deactivateCampaign(id: string): Promise<Campaign> {
-    const response: AxiosResponse<ApiResponse<{ data: Campaign }>> = 
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
       await this.api.post(`/campaigns/${id}/deactivate`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to deactivate campaign');
   }
@@ -258,17 +278,17 @@ class ApiService {
   }
 
   async getPayout(id: string): Promise<Payout> {
-    const response: AxiosResponse<ApiResponse<{ data: Payout }>> = 
+    const response: AxiosResponse<ApiResponse<Payout>> = 
       await this.api.get(`/payouts/${id}`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get payout');
   }
 
   async processPayouts(payoutIds: string[]): Promise<any> {
-    const response: AxiosResponse<ApiResponse<{ results: any }>> = 
+    const response: AxiosResponse<ApiResponse<any>> = 
       await this.api.post('/payouts/process', { payoutIds });
     
     if (response.data.ok && response.data.data) {
@@ -278,17 +298,17 @@ class ApiService {
   }
 
   async cancelPayout(id: string): Promise<Payout> {
-    const response: AxiosResponse<ApiResponse<{ data: Payout }>> = 
+    const response: AxiosResponse<ApiResponse<Payout>> = 
       await this.api.post(`/payouts/${id}/cancel`);
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to cancel payout');
   }
 
   async getPayoutStats(): Promise<any> {
-    const response: AxiosResponse<ApiResponse<{ data: any }>> = 
+    const response: AxiosResponse<ApiResponse<any>> = 
       await this.api.get('/payouts/stats/summary');
     
     if (response.data.ok && response.data.data) {
@@ -299,11 +319,11 @@ class ApiService {
 
   // Statistics
   async getOverviewStats(): Promise<OverviewStats> {
-    const response: AxiosResponse<ApiResponse<{ data: OverviewStats }>> = 
+    const response: AxiosResponse<ApiResponse<OverviewStats>> = 
       await this.api.get('/stats/overview');
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get overview stats');
   }
@@ -312,33 +332,54 @@ class ApiService {
     period?: string;
     granularity?: string;
   }): Promise<ActivityData> {
-    const response: AxiosResponse<ApiResponse<{ data: ActivityData }>> = 
+    const response: AxiosResponse<ApiResponse<ActivityData>> = 
       await this.api.get('/stats/activity', { params });
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get activity stats');
   }
 
   async getScoreDistribution(): Promise<any> {
-    const response: AxiosResponse<ApiResponse<{ data: any }>> = 
+    const response: AxiosResponse<ApiResponse<any>> = 
       await this.api.get('/stats/score-distribution');
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get score distribution');
   }
 
   async getUserEngagement(): Promise<any> {
-    const response: AxiosResponse<ApiResponse<{ data: any }>> = 
+    const response: AxiosResponse<ApiResponse<any>> = 
       await this.api.get('/stats/user-engagement');
     
     if (response.data.ok && response.data.data) {
-      return response.data.data.data;
+      return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to get user engagement');
+  }
+
+  async getLeaderboard(): Promise<LeaderboardData> {
+    const response: AxiosResponse<ApiResponse<LeaderboardData>> = 
+      await this.api.get('/stats/leaderboard');
+    
+    if (response.data.ok && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.error || 'Failed to get leaderboard');
+  }
+
+  async getCriticalMessages(): Promise<{ data: Message[]; count: number }> {
+    const response = await this.api.get('/messages/critical');
+    if (response.data.ok) {
+      return {
+        data: response.data.data,
+        count: response.data.count
+      };
+    }
+    throw new Error(response.data.error || 'Failed to get critical messages');
   }
 }
 
