@@ -7,7 +7,6 @@ import {
   Typography,
   Alert,
   Container,
-  Paper,
 } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginForm } from '../types';
