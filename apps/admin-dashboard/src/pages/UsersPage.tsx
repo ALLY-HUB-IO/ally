@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -32,7 +32,7 @@ export const UsersPage: React.FC = () => {
   const [sortBy] = useState('trust');
   const [sortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getUsers({
@@ -49,11 +49,11 @@ export const UsersPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, rowsPerPage, sortBy, sortOrder, search]);
 
   useEffect(() => {
     fetchUsers();
-  }, [page, rowsPerPage, sortBy, sortOrder, search]);
+  }, [fetchUsers]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -133,7 +133,7 @@ export const UsersPage: React.FC = () => {
           <TableHead>
             <TableRow>
               <TableCell>Rank</TableCell>
-              <TableCell>Identity</TableCell>
+              <TableCell>Wallet</TableCell>
               <TableCell>Display Name</TableCell>
               <TableCell>Trust Score</TableCell>
               <TableCell>Messages</TableCell>
@@ -152,7 +152,7 @@ export const UsersPage: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" fontFamily="monospace">
-                    {user.identity}
+                    {user.wallet || 'N/A'}
                   </Typography>
                 </TableCell>
                 <TableCell>
