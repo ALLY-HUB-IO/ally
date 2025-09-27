@@ -8,21 +8,18 @@ import {
   CircularProgress,
   Alert,
   Chip,
-  LinearProgress,
   Button,
 } from '@mui/material';
 import {
-  People as PeopleIcon,
-  Message as MessageIcon,
-  Campaign as CampaignIcon,
-  Payment as PaymentIcon,
   TrendingUp as TrendingUpIcon,
   AttachMoney as AttachMoneyIcon,
   Psychology as PsychologyIcon,
   Speed as SpeedIcon,
 } from '@mui/icons-material';
-import { OverviewStats } from '../types';
+import { OverviewStats, LeaderboardData } from '../types';
 import { apiService } from '../services/api';
+import { LiveFeed } from '../components/LiveFeed';
+import ReviewModal from '../components/ReviewModal';
 
 const StatCard: React.FC<{
   title: string;
@@ -106,73 +103,28 @@ const StatCard: React.FC<{
   </Card>
 );
 
-// Mock data for demonstration
-const getMockStats = (): OverviewStats => ({
-  users: {
-    total: 1250,
-    averageTrust: 0.75,
-    minTrust: 0.1,
-    maxTrust: 0.95,
-    recent: 45
-  },
-  messages: {
-    total: 5400,
-    recent: 234
-  },
-  interactions: {
-    total: 5400,
-    averageScore: 0.82,
-    minScore: 0.1,
-    maxScore: 0.98,
-    recent: 234
-  },
-  campaigns: {
-    total: 3,
-    totalRewardPool: "1250000000000000000000" // 1250 tokens in wei
-  },
-  payouts: {
-    total: 156,
-    totalAmount: "850000000000000000000", // 850 tokens in wei
-    recent: 12
-  }
-});
-
 export const DashboardPage: React.FC = () => {
   const [stats, setStats] = useState<OverviewStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isUsingMockData, setIsUsingMockData] = useState(false);
+  const [error, setError] = useState<string>('');
 
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        console.log('Attempting to fetch stats from API...');
+        console.log('Fetching stats from API...');
         const data = await apiService.getOverviewStats();
         console.log('API data received:', data);
         setStats(data);
-        setIsUsingMockData(false);
+        setError('');
       } catch (err) {
-        console.log('API not available or failed, using example data:', err);
-        // Always use mock data when API fails
-        setStats(getMockStats());
-        setIsUsingMockData(true);
+        console.error('Failed to fetch stats:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
 
-    // Add a timeout to ensure we don't wait too long for API
-    const timeoutId = setTimeout(() => {
-      if (loading) {
-        console.log('API timeout, using example data');
-        setStats(getMockStats());
-        setIsUsingMockData(true);
-        setLoading(false);
-      }
-    }, 3000); // 3 second timeout
-
     fetchStats();
-
-    return () => clearTimeout(timeoutId);
   }, []);
 
   if (loading) {
@@ -183,18 +135,104 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  if (!stats) {
-    // Final fallback - use mock data if somehow stats is still null
-    console.log('Stats is null, using fallback mock data');
-    const fallbackStats = getMockStats();
-    return <DashboardContent stats={fallbackStats} isExampleData={true} />;
+  if (error) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Alert severity="error" sx={{ maxWidth: 600 }}>
+          <Typography variant="h6" gutterBottom>
+            Failed to load dashboard data
+          </Typography>
+          <Typography variant="body2">
+            {error}
+          </Typography>
+        </Alert>
+      </Box>
+    );
   }
 
-  return <DashboardContent stats={stats} isExampleData={isUsingMockData} />;
+  if (!stats) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
+        <Alert severity="warning">
+          No data available
+        </Alert>
+      </Box>
+    );
+  }
+
+  return <DashboardContent stats={stats} />;
 };
 
-// Dashboard content component that can be reused with mock data
-const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean }> = ({ stats, isExampleData = false }) => {
+// Dashboard content component
+const DashboardContent: React.FC<{ stats: OverviewStats }> = ({ stats }) => {
+  const [topMessages, setTopMessages] = useState<any[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [leaderboardData, setLeaderboardData] = useState<LeaderboardData | null>(null);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(true);
+  const [criticalMessages, setCriticalMessages] = useState<any[]>([]);
+  const [loadingCritical, setLoadingCritical] = useState(true);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchTopMessages = async () => {
+      try {
+        // Get messages from the last 24 hours with highest scores
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        
+        const response = await apiService.getMessages({
+          page: 1,
+          limit: 5,
+          sortBy: 'score',
+          sortOrder: 'desc',
+          dateFrom: yesterday.toISOString()
+        });
+        setTopMessages(response.data);
+      } catch (err) {
+        console.error('Failed to fetch top messages:', err);
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    const fetchLeaderboard = async () => {
+      try {
+        const data = await apiService.getLeaderboard();
+        setLeaderboardData(data);
+      } catch (err) {
+        console.error('Failed to fetch leaderboard:', err);
+      } finally {
+        setLoadingLeaderboard(false);
+      }
+    };
+
+    const fetchCriticalMessages = async () => {
+      try {
+        const response = await apiService.getCriticalMessages();
+        setCriticalMessages(response.data);
+      } catch (err) {
+        console.error('Failed to fetch critical messages:', err);
+        setCriticalMessages([]);
+      } finally {
+        setLoadingCritical(false);
+      }
+    };
+
+    fetchTopMessages();
+    fetchLeaderboard();
+    fetchCriticalMessages();
+  }, []);
+
+  const handleOpenReviewModal = (message: any) => {
+    setSelectedMessage(message);
+    setReviewModalOpen(true);
+  };
+
+  const handleCloseReviewModal = () => {
+    setReviewModalOpen(false);
+    setSelectedMessage(null);
+  };
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
@@ -202,18 +240,6 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
           <Typography variant="h2" sx={{ fontWeight: 700, color: '#2D3748' }}>
             Project Dashboard
           </Typography>
-          {isExampleData && (
-            <Chip 
-              label="Example Data" 
-              size="small" 
-              sx={{ 
-                backgroundColor: '#F59E0B', 
-                color: 'white', 
-                fontWeight: 500,
-                fontSize: '0.75rem'
-              }} 
-            />
-          )}
         </Box>
         <Typography variant="body1" sx={{ color: '#718096' }}>
           Monitor your platform performance and user engagement
@@ -224,8 +250,8 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="This Month's Marketing Budget"
-            value={`$${(parseInt(stats.payouts.totalAmount) / 1e18 * 15).toLocaleString()}`}
-            subtitle="Payments to social media influencers"
+            value={`$${(parseInt(stats.thisMonthBudget || '0') / 1e18 * 15).toLocaleString()}`}
+            subtitle="Active campaign budget"
             icon={<AttachMoneyIcon />}
             color="#3B82F6"
           />
@@ -234,7 +260,7 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Top Platform"
-            value="X"
+            value={stats.topPlatform || "None"}
             subtitle="by Interaction Count"
             icon={<TrendingUpIcon />}
             color="#10B981"
@@ -244,7 +270,7 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Total Interactions"
-            value={stats.interactions.total.toLocaleString()}
+            value={(stats.totalInteractions || stats.interactions.total).toLocaleString()}
             subtitle="Across all platforms"
             icon={<SpeedIcon />}
             color="#F59E0B"
@@ -254,8 +280,8 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
         <Grid item xs={12} sm={6} md={3}>
           <StatCard
             title="Overall Sentiment"
-            value="Positive"
-            subtitle={`${Math.round(stats.interactions.averageScore * 100)}% Positive Mentions`}
+            value={stats.sentiment24h?.positive && stats.sentiment24h.positive > 50 ? "Positive" : stats.sentiment24h?.negative && stats.sentiment24h.negative > 50 ? "Negative" : "Neutral"}
+            subtitle={stats.sentiment24h ? `${stats.sentiment24h.positive}% Positive (24h)` : "No recent data"}
             icon={<PsychologyIcon />}
             color="#7B2CBF"
             gradient={true}
@@ -268,12 +294,19 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
         <Grid item xs={12} lg={8}>
           <Card sx={{ height: '100%' }}>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h5" sx={{ fontWeight: 600, color: '#2D3748', mb: 3 }}>
-                Influencer Leaderboard
-              </Typography>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                <Typography variant="h5" sx={{ fontWeight: 600, color: '#2D3748' }}>
+                  Influencer Leaderboard
+                </Typography>
+                {leaderboardData && (
+                  <Typography variant="caption" sx={{ color: '#718096' }}>
+                    Last updated: {new Date(leaderboardData.lastUpdated).toLocaleTimeString()}
+                  </Typography>
+                )}
+              </Box>
               
               <Box sx={{ overflow: 'hidden' }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, mb: 2, pb: 1, borderBottom: '1px solid #E2E8F0' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 2, mb: 2, pb: 1, borderBottom: '1px solid #E2E8F0' }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                     INFLUENCER
                   </Typography>
@@ -284,6 +317,9 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
                     INTERACTIONS
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    AVG SENTIMENT
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                     POINTS
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
@@ -291,31 +327,74 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
                   </Typography>
                 </Box>
                 
-                {[
-                  { name: 'Sophia Carter', platform: 'X', interactions: '1,500', points: '7,500', percentage: '25%' },
-                  { name: 'Ethan Bennett', platform: 'Telegram', interactions: '1,200', points: '6,000', percentage: '20%' },
-                  { name: 'Olivia Hayes', platform: 'Discord', interactions: '1,000', points: '5,000', percentage: '17%' },
-                  { name: 'Liam Foster', platform: 'X', interactions: '900', points: '4,500', percentage: '15%' },
-                  { name: 'Ava Morgan', platform: 'Telegram', interactions: '800', points: '4,000', percentage: '13%' },
-                ].map((influencer, index) => (
-                  <Box key={index} sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, py: 2, borderBottom: index < 4 ? '1px solid #F1F5F9' : 'none' }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#2D3748' }}>
-                      {influencer.name}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#718096' }}>
-                      {influencer.platform}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#2D3748' }}>
-                      {influencer.interactions}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#2D3748' }}>
-                      {influencer.points}
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: '#2D3748' }}>
-                      {influencer.percentage}
-                    </Typography>
+                {loadingLeaderboard ? (
+                  <Box display="flex" justifyContent="center" py={2}>
+                    <CircularProgress size={24} />
                   </Box>
-                ))}
+                ) : leaderboardData && leaderboardData.leaderboard.length > 0 ? (
+                  leaderboardData.leaderboard.map((influencer, index) => {
+                    const getSentimentColor = (score: number | null) => {
+                      if (score === null) return '#718096';
+                      if (score >= 0.8) return '#10B981'; // Green - Very Positive
+                      if (score >= 0.6) return '#84CC16'; // Light Green - Positive
+                      if (score >= 0.4) return '#F59E0B'; // Yellow - Neutral
+                      if (score >= 0.2) return '#F97316'; // Orange - Negative
+                      return '#EF4444'; // Red - Very Negative
+                    };
+
+                    const getSentimentLabel = (score: number | null) => {
+                      if (score === null) return 'N/A';
+                      if (score >= 0.8) return 'Very Positive';
+                      if (score >= 0.6) return 'Positive';
+                      if (score >= 0.4) return 'Neutral';
+                      if (score >= 0.2) return 'Negative';
+                      return 'Very Negative';
+                    };
+
+                    return (
+                      <Box key={influencer.userId} sx={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 2, py: 2, borderBottom: index < leaderboardData.leaderboard.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
+                        <Typography variant="body2" sx={{ fontWeight: 500, color: '#2D3748' }}>
+                          {influencer.userName}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#718096' }}>
+                          {influencer.platform}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#2D3748' }}>
+                          {influencer.interactions.toLocaleString()}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ color: getSentimentColor(influencer.averageSentiment) }}>
+                            {influencer.averageSentiment ? influencer.averageSentiment.toFixed(3) : 'N/A'}
+                          </Typography>
+                          {influencer.averageSentiment && (
+                            <Chip 
+                              label={getSentimentLabel(influencer.averageSentiment)} 
+                              size="small" 
+                              sx={{ 
+                                backgroundColor: getSentimentColor(influencer.averageSentiment), 
+                                color: 'white', 
+                                fontWeight: 500,
+                                fontSize: '0.65rem',
+                                height: 20,
+                                '& .MuiChip-label': { px: 1 }
+                              }} 
+                            />
+                          )}
+                        </Box>
+                        <Typography variant="body2" sx={{ color: '#2D3748' }}>
+                          {influencer.points ? influencer.points.toLocaleString() : 'N/A'}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: '#2D3748' }}>
+                          {influencer.percentageOfTotal.toFixed(1)}%
+                        </Typography>
+                      </Box>
+                    );
+                  })
+                ) : (
+                  <Typography variant="body2" sx={{ color: '#718096', textAlign: 'center', py: 2 }}>
+                    No leaderboard data available
+                  </Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -325,82 +404,10 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
         <Grid item xs={12} lg={4}>
           <Card sx={{ height: '100%' }}>
             <CardContent sx={{ p: 3 }}>
-              <Typography variant="h5" sx={{ fontWeight: 600, color: '#2D3748', mb: 3 }}>
-                Live Update Feed
-              </Typography>
-              
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {[
-                  { 
-                    icon: '🐦', 
-                    title: 'Post analyzed: Positive sentiment', 
-                    description: 'New partnership announcement by @Sarah_Johnson', 
-                    time: '2 minutes ago',
-                    sentiment: 'Positive',
-                    score: '0.85'
-                  },
-                  { 
-                    icon: '✈️', 
-                    title: 'Campaign feedback processed', 
-                    description: 'User engagement in Telegram group analyzed', 
-                    time: '15 minutes ago',
-                    sentiment: 'Neutral',
-                    score: '0.62'
-                  },
-                  { 
-                    icon: '💬', 
-                    title: 'Community post scored', 
-                    description: 'Discord #general channel activity analyzed', 
-                    time: '28 minutes ago',
-                    sentiment: 'Positive',
-                    score: '0.78'
-                  },
-                  { 
-                    icon: '🐦', 
-                    title: 'High-value post detected', 
-                    description: 'Feature announcement by @Liam_Foster', 
-                    time: '45 minutes ago',
-                    sentiment: 'Positive',
-                    score: '0.92'
-                  },
-                ].map((update, index) => (
-                  <Box key={index} sx={{ display: 'flex', gap: 2, pb: 2, borderBottom: index < 3 ? '1px solid #F1F5F9' : 'none' }}>
-                    <Box sx={{ fontSize: '1.5rem', flexShrink: 0 }}>
-                      {update.icon}
-                    </Box>
-                    <Box sx={{ flex: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, color: '#2D3748' }}>
-                          {update.title}
-                        </Typography>
-                        <Chip 
-                          label={update.sentiment} 
-                          size="small" 
-                          sx={{ 
-                            backgroundColor: update.sentiment === 'Positive' ? '#10B981' : '#F59E0B', 
-                            color: 'white', 
-                            fontWeight: 500,
-                            fontSize: '0.65rem',
-                            height: 20,
-                            '& .MuiChip-label': { px: 1 }
-                          }} 
-                        />
-                      </Box>
-                      <Typography variant="body2" sx={{ color: '#718096', mb: 0.5 }}>
-                        {update.description}
-                      </Typography>
-                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <Typography variant="caption" sx={{ color: '#A0AEC0' }}>
-                          {update.time}
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: '#7B2CBF', fontWeight: 600 }}>
-                          Score: {update.score}
-                        </Typography>
-                      </Box>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
+              <LiveFeed 
+                limit={8} 
+                refreshInterval={5000}
+              />
             </CardContent>
           </Card>
         </Grid>
@@ -430,9 +437,12 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
               </Box>
               
               <Box sx={{ overflow: 'hidden' }}>
-                <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 2, mb: 2, pb: 1, borderBottom: '1px solid #E2E8F0' }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 2, mb: 2, pb: 1, borderBottom: '1px solid #E2E8F0' }}>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                     POST
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+                    PLATFORM
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                     SENTIMENT
@@ -441,63 +451,108 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
                     VALUE
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600, color: '#718096', textTransform: 'uppercase', fontSize: '0.75rem' }}>
-                    REACH
+                    SCORE
                   </Typography>
                 </Box>
                 
-                {[
-                  { 
-                    post: 'Excited to announce our new partnership! #Social... on X', 
-                    sentiment: { label: 'Positive', color: '#10B981' }, 
-                    value: { label: 'High', color: '#3B82F6' }, 
-                    reach: '10k' 
-                  },
-                  { 
-                    post: 'Check out our latest campaign results. Link in bio! on Telegram', 
-                    sentiment: { label: 'Neutral', color: '#F59E0B' }, 
-                    value: { label: 'Medium', color: '#F59E0B' }, 
-                    reach: '5k' 
-                  },
-                  { 
-                    post: 'Join our community for exclusive content and upd... on Discord', 
-                    sentiment: { label: 'Positive', color: '#10B981' }, 
-                    value: { label: 'Medium', color: '#F59E0B' }, 
-                    reach: '3k' 
-                  },
-                ].map((item, index) => (
-                  <Box key={index} sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 2, py: 2, borderBottom: index < 2 ? '1px solid #F1F5F9' : 'none' }}>
+                {loadingMessages ? (
+                  <Box display="flex" justifyContent="center" py={2}>
+                    <CircularProgress size={24} />
+                  </Box>
+                ) : topMessages.length > 0 ? topMessages.map((message, index) => {
+                  // Extract sentiment and value scores from details if available
+                  const sentimentScore = message.scores && message.scores.length > 0 && message.scores[0].details?.sentiment?.score 
+                    ? message.scores[0].details.sentiment.score 
+                    : message.score; // fallback to overall score
+                  
+                  const valueScore = message.scores && message.scores.length > 0 && message.scores[0].details?.value?.score 
+                    ? message.scores[0].details.value.score 
+                    : message.score; // fallback to overall score
+
+                  const getSentimentColor = (score: number) => {
+                    if (score >= 0.8) return '#10B981';
+                    if (score >= 0.6) return '#84CC16';
+                    if (score >= 0.4) return '#F59E0B';
+                    if (score >= 0.2) return '#F97316';
+                    return '#EF4444';
+                  };
+                  
+                  const getSentimentLabel = (score: number) => {
+                    if (score >= 0.8) return 'Very Positive';
+                    if (score >= 0.6) return 'Positive';
+                    if (score >= 0.4) return 'Neutral';
+                    if (score >= 0.2) return 'Negative';
+                    return 'Very Negative';
+                  };
+                  
+                  const getValueLabel = (score: number) => {
+                    if (score >= 0.8) return 'High';
+                    if (score >= 0.6) return 'Medium-High';
+                    if (score >= 0.4) return 'Medium';
+                    if (score >= 0.2) return 'Low';
+                    return 'Very Low';
+                  };
+                  
+                  const getValueColor = (score: number) => {
+                    if (score >= 0.8) return '#3B82F6';
+                    if (score >= 0.6) return '#06B6D4';
+                    if (score >= 0.4) return '#F59E0B';
+                    if (score >= 0.2) return '#F97316';
+                    return '#EF4444';
+                  };
+
+                  return (
+                  <Box key={message.id} sx={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', gap: 2, py: 2, borderBottom: index < topMessages.length - 1 ? '1px solid #F1F5F9' : 'none' }}>
                     <Typography variant="body2" sx={{ color: '#2D3748', lineHeight: 1.4 }}>
-                      {item.post}
+                      {message.content.length > 50 ? `${message.content.substring(0, 50)}...` : message.content}
                     </Typography>
-                    <Chip 
-                      label={item.sentiment.label} 
-                      size="small" 
-                      sx={{ 
-                        backgroundColor: item.sentiment.color, 
-                        color: 'white', 
-                        fontWeight: 500,
-                        fontSize: '0.75rem',
-                        height: 24,
-                        '& .MuiChip-label': { px: 1.5 }
-                      }} 
-                    />
-                    <Chip 
-                      label={item.value.label} 
-                      size="small" 
-                      sx={{ 
-                        backgroundColor: item.value.color, 
-                        color: 'white', 
-                        fontWeight: 500,
-                        fontSize: '0.75rem',
-                        height: 24,
-                        '& .MuiChip-label': { px: 1.5 }
-                      }} 
-                    />
-                    <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 500 }}>
-                      {item.reach}
+                    <Typography variant="body2" sx={{ color: '#718096', textTransform: 'capitalize' }}>
+                      {message.platform}
+                    </Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ color: getSentimentColor(sentimentScore), fontWeight: 500 }}>
+                        {sentimentScore.toFixed(3)}
+                      </Typography>
+                      <Chip 
+                        label={getSentimentLabel(sentimentScore)} 
+                        size="small" 
+                        sx={{ 
+                          backgroundColor: getSentimentColor(sentimentScore), 
+                          color: 'white', 
+                          fontWeight: 500,
+                          fontSize: '0.65rem',
+                          height: 20,
+                          '& .MuiChip-label': { px: 1 }
+                        }} 
+                      />
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography variant="body2" sx={{ color: getValueColor(valueScore), fontWeight: 500 }}>
+                        {valueScore.toFixed(3)}
+                      </Typography>
+                      <Chip 
+                        label={getValueLabel(valueScore)} 
+                        size="small" 
+                        sx={{ 
+                          backgroundColor: getValueColor(valueScore), 
+                          color: 'white', 
+                          fontWeight: 500,
+                          fontSize: '0.65rem',
+                          height: 20,
+                          '& .MuiChip-label': { px: 1 }
+                        }} 
+                      />
+                    </Box>
+                    <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 600 }}>
+                      {message.score.toFixed(3)}
                     </Typography>
                   </Box>
-                ))}
+                  );
+                }) : (
+                  <Typography variant="body2" sx={{ color: '#718096', textAlign: 'center', py: 2 }}>
+                    No messages found
+                  </Typography>
+                )}
               </Box>
             </CardContent>
           </Card>
@@ -511,66 +566,164 @@ const DashboardContent: React.FC<{ stats: OverviewStats; isExampleData?: boolean
                 <Typography variant="h5" sx={{ fontWeight: 600, color: '#2D3748' }}>
                   Review Critical Posts
                 </Typography>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    color: '#EF4444', 
-                    fontWeight: 600,
-                    backgroundColor: '#FEF2F2',
-                    px: 1.5,
-                    py: 0.5,
-                    borderRadius: 1,
-                    fontSize: '0.75rem'
-                  }}
-                >
-                  3 items need attention
-                </Typography>
+                {!loadingCritical && (
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: criticalMessages.length > 0 ? '#EF4444' : '#10B981', 
+                      fontWeight: 600,
+                      backgroundColor: criticalMessages.length > 0 ? '#FEF2F2' : '#F0FDF4',
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 1,
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    {criticalMessages.length} {criticalMessages.length === 1 ? 'item' : 'items'} need attention
+                  </Typography>
+                )}
               </Box>
               
-              <Box sx={{ mb: 3 }}>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    color: '#EF4444', 
-                    fontWeight: 500, 
-                    mb: 1,
-                    lineHeight: 1.4
-                  }}
-                >
-                  "This is unacceptable! #CustomerService"
-                </Typography>
-                <Typography 
-                  variant="caption" 
-                  sx={{ 
-                    color: '#718096',
-                    display: 'block',
-                    mb: 2
-                  }}
-                >
-                  on X, Reach: 15k
-                </Typography>
-                <Button
-                  variant="contained"
-                  size="small"
-                  sx={{
-                    backgroundColor: '#7B2CBF',
-                    borderRadius: 2,
-                    textTransform: 'none',
-                    fontWeight: 600,
-                    px: 2,
-                    py: 0.5,
-                    '&:hover': {
-                      backgroundColor: '#5A189A',
-                    },
-                  }}
-                >
-                  Review
-                </Button>
-              </Box>
+              {loadingCritical ? (
+                <Box display="flex" justifyContent="center" py={2}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : criticalMessages.length > 0 ? (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                  {criticalMessages.map((message, index) => {
+                    const getSeverityColor = (score: number) => {
+                      if (score < 0.1) return '#DC2626'; // Very critical
+                      if (score < 0.2) return '#EA580C'; // Critical
+                      return '#D97706'; // Moderate
+                    };
+
+                    const getSeverityLabel = (score: number) => {
+                      if (score < 0.1) return 'Very Critical';
+                      if (score < 0.2) return 'Critical';
+                      return 'Moderate';
+                    };
+
+                    return (
+                      <Box key={message.id} sx={{ 
+                        p: 2, 
+                        border: '1px solid #FEE2E2', 
+                        borderRadius: 2, 
+                        backgroundColor: '#FEFEFE' 
+                      }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+                          <Typography 
+                            variant="body2" 
+                            sx={{ 
+                              color: '#374151', 
+                              fontWeight: 500, 
+                              lineHeight: 1.4,
+                              flex: 1,
+                              mr: 1
+                            }}
+                          >
+                            "{message.content.length > 80 ? `${message.content.substring(0, 80)}...` : message.content}"
+                          </Typography>
+                          <Chip
+                            label={getSeverityLabel(message.score)}
+                            size="small"
+                            sx={{
+                              backgroundColor: getSeverityColor(message.score),
+                              color: 'white',
+                              fontWeight: 600,
+                              fontSize: '0.65rem',
+                              height: 20,
+                              '& .MuiChip-label': { px: 1 }
+                            }}
+                          />
+                        </Box>
+                        <Typography 
+                          variant="caption" 
+                          sx={{ 
+                            color: '#718096',
+                            display: 'block',
+                            mb: 1
+                          }}
+                        >
+                          on {message.platform} • Score: {message.score.toFixed(3)} • {new Date(message.createdAt).toLocaleTimeString()}
+                        </Typography>
+                        <Box sx={{ display: 'flex', gap: 1 }}>
+                          <Button
+                            variant="contained"
+                            size="small"
+                            onClick={() => handleOpenReviewModal(message)}
+                            sx={{
+                              backgroundColor: '#7B2CBF',
+                              borderRadius: 2,
+                              textTransform: 'none',
+                              fontWeight: 600,
+                              px: 2,
+                              py: 0.5,
+                              fontSize: '0.75rem',
+                              '&:hover': {
+                                backgroundColor: '#5A189A',
+                              },
+                            }}
+                          >
+                            Review
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            sx={{
+                              borderColor: '#D1D5DB',
+                              color: '#6B7280',
+                              borderRadius: 2,
+                              textTransform: 'none',
+                              fontWeight: 500,
+                              px: 2,
+                              py: 0.5,
+                              fontSize: '0.75rem',
+                              '&:hover': {
+                                borderColor: '#9CA3AF',
+                                backgroundColor: '#F9FAFB',
+                              },
+                            }}
+                          >
+                            Dismiss
+                          </Button>
+                        </Box>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              ) : (
+                <Box sx={{ textAlign: 'center', py: 4 }}>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#10B981', 
+                      fontWeight: 500,
+                      mb: 1
+                    }}
+                  >
+                    🎉 No critical posts found!
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      color: '#718096'
+                    }}
+                  >
+                    All posts from the last 24 hours have positive sentiment
+                  </Typography>
+                </Box>
+              )}
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+
+      {/* Review Modal */}
+      <ReviewModal
+        open={reviewModalOpen}
+        onClose={handleCloseReviewModal}
+        message={selectedMessage}
+      />
     </Box>
   );
 };

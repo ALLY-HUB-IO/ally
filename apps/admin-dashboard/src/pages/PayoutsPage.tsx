@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -42,7 +42,7 @@ export const PayoutsPage: React.FC = () => {
   const [selectedPayouts, setSelectedPayouts] = useState<Set<string>>(new Set());
   const [processDialogOpen, setProcessDialogOpen] = useState(false);
 
-  const fetchPayouts = async () => {
+  const fetchPayouts = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getPayouts({
@@ -57,11 +57,11 @@ export const PayoutsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, rowsPerPage, statusFilter]);
 
   useEffect(() => {
     fetchPayouts();
-  }, [page, rowsPerPage, statusFilter]);
+  }, [fetchPayouts]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);

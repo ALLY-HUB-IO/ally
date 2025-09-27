@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Typography,
@@ -52,7 +52,7 @@ export const CampaignsPage: React.FC = () => {
     maxRewardPerUser: '',
   });
 
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = useCallback(async () => {
     try {
       setLoading(true);
       const response = await apiService.getCampaigns({
@@ -66,11 +66,11 @@ export const CampaignsPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, rowsPerPage]);
 
   useEffect(() => {
     fetchCampaigns();
-  }, [page, rowsPerPage]);
+  }, [fetchCampaigns]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
