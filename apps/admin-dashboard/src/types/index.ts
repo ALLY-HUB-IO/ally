@@ -11,7 +11,7 @@ export interface Admin {
 // User types
 export interface User {
   id: string;
-  identity: string;
+  wallet?: string;
   displayName?: string;
   trust: number;
   createdAt: string;
@@ -28,13 +28,26 @@ export interface Message {
   id: string;
   externalId?: string;
   content: string;
-  author?: User;
-  platform: string;
+  author?: {
+    id: string;
+    displayName?: string;
+    platform: string;
+    user?: {
+      id: string;
+      wallet?: string;
+      trust: number;
+    };
+  };
   projectId: string;
   score: number;
+  platform: string;
   rationale: string;
   createdAt: string;
   updatedAt?: string;
+  source?: {
+    platform: string;
+    name?: string;
+  };
   scores: Score[];
   reactions: Reaction[];
   scoreBreakdown: Record<string, number>;
@@ -46,13 +59,30 @@ export interface Score {
   value: number;
   source: string;
   createdAt: string;
+  updatedAt: string;
+  details?: any;
+  platformUserId: string;
+  platformUser: {
+    id: string;
+    displayName?: string;
+    platform: string;
+    user?: {
+      id: string;
+      wallet?: string;
+      trust: number;
+    };
+  };
 }
 
 export interface Reaction {
   id: string;
   kind: string;
   weight?: number;
-  user: User;
+  platformUser: {
+    id: string;
+    displayName?: string;
+    platform: string;
+  };
   createdAt: string;
 }
 
@@ -124,6 +154,19 @@ export interface PaginatedResponse<T> {
 
 // Statistics types
 export interface OverviewStats {
+  // Dashboard-specific metrics
+  thisMonthBudget?: string;
+  topPlatform?: string;
+  totalInteractions?: number;
+  sentiment24h?: {
+    total: number;
+    average: number;
+    negative: number;
+    neutral: number;
+    positive: number;
+  };
+  
+  // Original metrics
   users: {
     total: number;
     averageTrust: number;
@@ -163,6 +206,23 @@ export interface ActivityData {
     messages: Array<{ period: string; count: number }>;
     interactions: Array<{ period: string; count: number; avg_score: number }>;
   };
+}
+
+export interface LeaderboardEntry {
+  rank: number;
+  userId: string;
+  userName: string;
+  platform: string;
+  interactions: number;
+  points: number | null;
+  percentageOfTotal: number;
+  averageSentiment: number | null;
+}
+
+export interface LeaderboardData {
+  leaderboard: LeaderboardEntry[];
+  totalInteractions: number;
+  lastUpdated: string;
 }
 
 // Form types
