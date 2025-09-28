@@ -431,7 +431,7 @@ export class DiscordEventProcessor implements PlatformEventProcessor {
    * Extracts numeric score from breakdown object
    */
   private extractScore(breakdown: any): number {
-    return breakdown.score || breakdown;
+    return typeof breakdown.score === 'number' ? breakdown.score : breakdown;
   }
 
   /**
