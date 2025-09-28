@@ -20,6 +20,7 @@ import { OverviewStats, LeaderboardData } from '../types';
 import { apiService } from '../services/api';
 import { LiveFeed } from '../components/LiveFeed';
 import ReviewModal from '../components/ReviewModal';
+import ErrorBoundary from '../components/ErrorBoundary';
 
 const StatCard: React.FC<{
   title: string;
@@ -160,7 +161,11 @@ export const DashboardPage: React.FC = () => {
     );
   }
 
-  return <DashboardContent stats={stats} />;
+  return (
+    <ErrorBoundary>
+      <DashboardContent stats={stats} />
+    </ErrorBoundary>
+  );
 };
 
 // Dashboard content component
@@ -463,11 +468,11 @@ const DashboardContent: React.FC<{ stats: OverviewStats }> = ({ stats }) => {
                   // Extract sentiment and value scores from details if available
                   const sentimentScore = message.scores && message.scores.length > 0 && message.scores[0].details?.sentiment?.score 
                     ? message.scores[0].details.sentiment.score 
-                    : message.score; // fallback to overall score
+                    : (typeof message.score === 'number' ? message.score : 0); // fallback to overall score or 0
                   
                   const valueScore = message.scores && message.scores.length > 0 && message.scores[0].details?.value?.score 
                     ? message.scores[0].details.value.score 
-                    : message.score; // fallback to overall score
+                    : (typeof message.score === 'number' ? message.score : 0); // fallback to overall score or 0
 
                   const getSentimentColor = (score: number) => {
                     if (score >= 0.8) return '#10B981';
@@ -511,7 +516,7 @@ const DashboardContent: React.FC<{ stats: OverviewStats }> = ({ stats }) => {
                     </Typography>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Typography variant="body2" sx={{ color: getSentimentColor(sentimentScore), fontWeight: 500 }}>
-                        {sentimentScore.toFixed(3)}
+                        {typeof sentimentScore === 'number' ? sentimentScore.toFixed(3) : 'N/A'}
                       </Typography>
                       <Chip 
                         label={getSentimentLabel(sentimentScore)} 
@@ -528,7 +533,7 @@ const DashboardContent: React.FC<{ stats: OverviewStats }> = ({ stats }) => {
                     </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                       <Typography variant="body2" sx={{ color: getValueColor(valueScore), fontWeight: 500 }}>
-                        {valueScore.toFixed(3)}
+                        {typeof valueScore === 'number' ? valueScore.toFixed(3) : 'N/A'}
                       </Typography>
                       <Chip 
                         label={getValueLabel(valueScore)} 
@@ -544,7 +549,7 @@ const DashboardContent: React.FC<{ stats: OverviewStats }> = ({ stats }) => {
                       />
                     </Box>
                     <Typography variant="body2" sx={{ color: '#2D3748', fontWeight: 600 }}>
-                      {message.score.toFixed(3)}
+                      {typeof message.score === 'number' ? message.score.toFixed(3) : 'N/A'}
                     </Typography>
                   </Box>
                   );
@@ -644,7 +649,7 @@ const DashboardContent: React.FC<{ stats: OverviewStats }> = ({ stats }) => {
                             mb: 1
                           }}
                         >
-                          on {message.platform} • Score: {message.score.toFixed(3)} • {new Date(message.createdAt).toLocaleTimeString()}
+                          on {message.platform} • Score: {typeof message.score === 'number' ? message.score.toFixed(3) : 'N/A'} • {new Date(message.createdAt).toLocaleTimeString()}
                         </Typography>
                         <Box sx={{ display: 'flex', gap: 1 }}>
                           <Button
