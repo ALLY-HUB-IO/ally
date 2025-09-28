@@ -419,15 +419,15 @@ const ReviewModal: React.FC<ReviewModalProps> = ({ open, onClose, message }) => 
                                   Value Analysis
                                 </Typography>
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                                  <Typography variant="h6" sx={{ color: safeGetScoreColor(details.value.score.score) === 'success' ? '#10B981' : 
-                                    safeGetScoreColor(details.value.score.score) === 'primary' ? '#3B82F6' : 
-                                    safeGetScoreColor(details.value.score.score) === 'warning' ? '#F59E0B' : '#EF4444' }}>
-                                    {safeFormatScore(details.value.score.score)}
+                                  <Typography variant="h6" sx={{ color: safeGetScoreColor(details.value.score) === 'success' ? '#10B981' : 
+                                    safeGetScoreColor(details.value.score) === 'primary' ? '#3B82F6' : 
+                                    safeGetScoreColor(details.value.score) === 'warning' ? '#F59E0B' : '#EF4444' }}>
+                                    {safeFormatScore(details.value.score)}
                                   </Typography>
                                   <Chip
                                     label={details.value.label || 'N/A'}
                                     size="small"
-                                    color={safeGetScoreColor(details.value.score.score) as any}
+                                    color={safeGetScoreColor(details.value.score) as any}
                                   />
                                 </Box>
                                 <Typography variant="body2" sx={{ color: '#2D3748', mb: 0.5 }}>
@@ -435,7 +435,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({ open, onClose, message }) => 
                                 </Typography>
                                 <Typography variant="body2" sx={{ color: '#2D3748', mb: 0.5 }}>
                                   Weight: {details.value.weight || 'N/A'} | 
-                                  Weighted Score: {safeFormatScore(details.value.weightedScore || details.value.score.score * details.value.weight)}
+                                  Weighted Score: {safeFormatScore(details.value.weightedScore || details.value.score * details.value.weight)}
                                 </Typography>
                               </Box>
                             </Grid>
