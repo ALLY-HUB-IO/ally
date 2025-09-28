@@ -13,6 +13,7 @@ import { MessagesPage } from './pages/MessagesPage';
 import { CampaignsPage } from './pages/CampaignsPage';
 import { PayoutsPage } from './pages/PayoutsPage';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const theme = createTheme({
   palette: {
@@ -135,35 +136,37 @@ const theme = createTheme({
 
 function App() {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <AuthProvider>
-        <Router>
-          <Box sx={{ display: 'flex', minHeight: '100vh' }}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route
-                path="/*"
-                element={
-                  <ProtectedRoute>
-                    <Layout>
-                      <Routes>
-                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                        <Route path="/dashboard" element={<DashboardPage />} />
-                        <Route path="/users" element={<UsersPage />} />
-                        <Route path="/messages" element={<MessagesPage />} />
-                        <Route path="/campaigns" element={<CampaignsPage />} />
-                        <Route path="/payouts" element={<PayoutsPage />} />
-                      </Routes>
-                    </Layout>
-                  </ProtectedRoute>
-                }
-              />
-            </Routes>
-          </Box>
-        </Router>
-      </AuthProvider>
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <AuthProvider>
+          <Router>
+            <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route
+                  path="/*"
+                  element={
+                    <ProtectedRoute>
+                      <Layout>
+                        <Routes>
+                          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                          <Route path="/dashboard" element={<DashboardPage />} />
+                          <Route path="/users" element={<UsersPage />} />
+                          <Route path="/messages" element={<MessagesPage />} />
+                          <Route path="/campaigns" element={<CampaignsPage />} />
+                          <Route path="/payouts" element={<PayoutsPage />} />
+                        </Routes>
+                      </Layout>
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </Box>
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
