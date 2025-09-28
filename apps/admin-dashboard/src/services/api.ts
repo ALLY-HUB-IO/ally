@@ -20,7 +20,7 @@ class ApiService {
 
   constructor() {
     this.api = axios.create({
-      baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8083/api',
+      baseURL: (typeof process !== 'undefined' && process.env?.REACT_APP_API_URL) || 'http://localhost:8083/api',
       timeout: 10000,
     });
 
