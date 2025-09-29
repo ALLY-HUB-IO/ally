@@ -5,38 +5,64 @@ import { AuthenticatedRequest } from '../middleware/auth';
 
 const router = Router();
 
+// Supported chains and platforms
+const SUPPORTED_CHAINS = ['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'base', 'near', 'theta', 'theta-testnet'];
+const SUPPORTED_PLATFORMS = ['discord', 'twitter', 'telegram', 'reddit'];
+
 // Validation schemas
 const createCampaignSchema = Joi.object({
   name: Joi.string().min(3).max(100).required(),
   description: Joi.string().max(500).optional(),
   tokenSymbol: Joi.string().min(2).max(10).required(),
-  tokenAddress: Joi.string().optional(),
+  isNative: Joi.boolean().default(false),
+  chainId: Joi.string().valid(...SUPPORTED_CHAINS).required(),
+  tokenAddress: Joi.string().when('isNative', {
+    is: false,
+    then: Joi.string().required(),
+    otherwise: Joi.string().optional()
+  }),
   totalRewardPool: Joi.string().pattern(/^\d+$/).required(),
   startDate: Joi.date().required(),
   endDate: Joi.date().greater(Joi.ref('startDate')).required(),
+  isActive: Joi.boolean().default(true),
   minScore: Joi.number().min(0).max(1).optional(),
-  maxRewardPerUser: Joi.string().pattern(/^\d+$/).optional()
+  maxRewardsPerUser: Joi.string().pattern(/^\d+$/).optional(),
+  timeframe: Joi.number().integer().min(1).required(),
+  platforms: Joi.array().items(Joi.string().valid(...SUPPORTED_PLATFORMS)).min(1).required()
 });
 
 const updateCampaignSchema = Joi.object({
   name: Joi.string().min(3).max(100).optional(),
   description: Joi.string().max(500).optional(),
   tokenSymbol: Joi.string().min(2).max(10).optional(),
+  isNative: Joi.boolean().optional(),
+  chainId: Joi.string().valid(...SUPPORTED_CHAINS).optional(),
   tokenAddress: Joi.string().optional(),
   totalRewardPool: Joi.string().pattern(/^\d+$/).optional(),
   startDate: Joi.date().optional(),
   endDate: Joi.date().optional(),
   isActive: Joi.boolean().optional(),
   minScore: Joi.number().min(0).max(1).optional(),
-  maxRewardPerUser: Joi.string().pattern(/^\d+$/).optional()
+  maxRewardsPerUser: Joi.string().pattern(/^\d+$/).optional(),
+  timeframe: Joi.number().integer().min(1).optional(),
+  platforms: Joi.array().items(Joi.string().valid(...SUPPORTED_PLATFORMS)).min(1).optional()
+}).custom((value, helpers) => {
+  // Custom validation for conditional tokenAddress requirement
+  if (value.isNative === false && !value.tokenAddress) {
+    return helpers.error('any.custom', { message: 'tokenAddress is required when isNative is false' });
+  }
+  return value;
 });
 
 const campaignQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
-  sortBy: Joi.string().valid('createdAt', 'startDate', 'endDate', 'name').default('createdAt'),
+  sortBy: Joi.string().valid('createdAt', 'startDate', 'endDate', 'name', 'chainId', 'timeframe').default('createdAt'),
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
   isActive: Joi.boolean().optional(),
+  isNative: Joi.boolean().optional(),
+  chainId: Joi.string().valid(...SUPPORTED_CHAINS).optional(),
+  platforms: Joi.string().optional(), // Comma-separated list of platforms
   search: Joi.string().optional()
 });
 
@@ -52,7 +78,7 @@ router.get('/', async (req: Request, res: Response) => {
       });
     }
 
-    const { page, limit, sortBy, sortOrder, isActive, search } = value;
+    const { page, limit, sortBy, sortOrder, isActive, isNative, chainId, platforms, search } = value;
     const offset = (page - 1) * limit;
 
     // Build where clause
@@ -62,11 +88,28 @@ router.get('/', async (req: Request, res: Response) => {
       where.isActive = isActive;
     }
 
+    if (isNative !== undefined) {
+      where.isNative = isNative;
+    }
+
+    if (chainId) {
+      where.chainId = chainId;
+    }
+
+    if (platforms) {
+      const platformArray = platforms.split(',').map(p => p.trim());
+      where.platforms = {
+        hasSome: platformArray
+      };
+    }
+
     if (search) {
       where.OR = [
         { name: { contains: search, mode: 'insensitive' } },
         { description: { contains: search, mode: 'insensitive' } },
-        { tokenSymbol: { contains: search, mode: 'insensitive' } }
+        { tokenSymbol: { contains: search, mode: 'insensitive' } },
+        { chainId: { contains: search, mode: 'insensitive' } },
+        { tokenAddress: { contains: search, mode: 'insensitive' } }
       ];
     }
 
