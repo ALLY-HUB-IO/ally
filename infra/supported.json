@@ -1,0 +1,106 @@
+{
+  "blockchains": [
+    {
+      "id": "ethereum",
+      "name": "Ethereum",
+      "chainId": "1",
+      "nativeSymbol": "ETH",
+      "rpcUrl": "https://eth.llamarpc.com",
+      "isTestnet": false
+    },
+    {
+      "id": "ethereum-sepolia",
+      "name": "Ethereum Sepolia",
+      "chainId": "11155111",
+      "nativeSymbol": "ETH",
+      "rpcUrl": "https://rpc.sepolia.org",
+      "isTestnet": true
+    },
+    {
+      "id": "polygon",
+      "name": "Polygon",
+      "chainId": "137",
+      "nativeSymbol": "MATIC",
+      "rpcUrl": "https://polygon-rpc.com",
+      "isTestnet": false
+    },
+    {
+      "id": "bsc",
+      "name": "BSC",
+      "chainId": "56",
+      "nativeSymbol": "BNB",
+      "rpcUrl": "https://bsc-dataseed.binance.org",
+      "isTestnet": false
+    },
+    {
+      "id": "arbitrum",
+      "name": "Arbitrum",
+      "chainId": "42161",
+      "nativeSymbol": "ETH",
+      "rpcUrl": "https://arb1.arbitrum.io/rpc",
+      "isTestnet": false
+    },
+    {
+      "id": "optimism",
+      "name": "Optimism",
+      "chainId": "10",
+      "nativeSymbol": "ETH",
+      "rpcUrl": "https://mainnet.optimism.io",
+      "isTestnet": false
+    },
+    {
+      "id": "base",
+      "name": "Base",
+      "chainId": "8453",
+      "nativeSymbol": "ETH",
+      "rpcUrl": "https://mainnet.base.org",
+      "isTestnet": false
+    },
+    {
+      "id": "near",
+      "name": "NEAR",
+      "chainId": "near",
+      "nativeSymbol": "NEAR",
+      "rpcUrl": "https://rpc.mainnet.near.org",
+      "isTestnet": false
+    },
+    {
+      "id": "theta",
+      "name": "Theta Network",
+      "chainId": "361",
+      "nativeSymbol": "TFUEL",
+      "rpcUrl": "https://eth-rpc-api.thetatoken.org/rpc",
+      "isTestnet": false
+    },
+    {
+      "id": "theta-testnet",
+      "name": "Theta Testnet",
+      "chainId": "365",
+      "nativeSymbol": "TFUEL",
+      "rpcUrl": "https://eth-rpc-api-testnet.thetatoken.org/rpc",
+      "isTestnet": true
+    }
+  ],
+  "platforms": [
+    {
+      "id": "discord",
+      "name": "Discord",
+      "description": "Discord server integration"
+    },
+    {
+      "id": "twitter",
+      "name": "Twitter",
+      "description": "Twitter/X social media integration"
+    },
+    {
+      "id": "telegram",
+      "name": "Telegram",
+      "description": "Telegram channel integration"
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit",
+      "description": "Reddit community integration"
+    }
+  ]
+}
