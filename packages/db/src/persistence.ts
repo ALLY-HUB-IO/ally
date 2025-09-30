@@ -19,6 +19,26 @@ import type {
   RelationKind
 } from '@prisma/client';
 
+// Define enum types manually until Prisma client is properly generated
+export type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELED';
+export type EpochState = 'OPEN' | 'CLAIMING' | 'RECYCLED' | 'EXPIRED' | 'CLOSED';
+
+// Define CampaignEpoch type manually
+export interface CampaignEpoch {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  campaignId: string;
+  epochNumber: number;
+  epochStart: Date;
+  epochEnd: Date;
+  claimWindowEnds: Date;
+  allocated: any; // Decimal type
+  claimed: any; // Decimal type
+  recycledAt: Date | null;
+  state: EpochState;
+}
+
 // Type definitions for function parameters
 export interface SaveMessageData {
   projectId: string;
@@ -73,12 +93,14 @@ export interface CampaignData {
   isNative: boolean;
   chainId?: string;
   tokenAddress?: string;
-  totalRewardPool: string;
-  startDate: Date;
-  endDate: Date;
-  minScore?: number;
-  maxRewardsPerUser?: string;
-  timeframe: number;
+  totalRewardPool: string; // Will be converted to Decimal
+  startDate?: Date; // Now optional
+  endDate?: Date; // Now optional
+  maxRewardsPerUser?: string; // Will be converted to Decimal
+  payoutIntervalSeconds: number;
+  epochRewardCap: string; // Will be converted to Decimal
+  claimWindowSeconds: number;
+  recycleUnclaimed?: boolean;
   platforms: string[];
   createdById: string;
 }
@@ -87,10 +109,22 @@ export interface PayoutData {
   platformUserId: string;
   userId: string;
   campaignId: string;
-  amount: string;
+  amount: string; // Will be converted to Decimal
   periodStart: Date;
   periodEnd: Date;
   processedById?: string;
+  epochId?: string; // NEW: link to epoch
+}
+
+export interface CampaignEpochData {
+  campaignId: string;
+  epochNumber: number;
+  epochStart: Date;
+  epochEnd: Date;
+  claimWindowEnds: Date;
+  allocated: string; // Will be converted to Decimal
+  claimed?: string; // Will be converted to Decimal, defaults to 0
+  state?: EpochState;
 }
 
 export interface PersistenceService {
@@ -149,6 +183,16 @@ export interface PersistenceService {
   getCampaign(campaignId: string): Promise<Campaign | null>;
   getAllCampaigns(limit?: number, offset?: number): Promise<Campaign[]>;
   updateCampaign(campaignId: string, updates: Partial<CampaignData>): Promise<Campaign>;
+  updateCampaignStatus(campaignId: string, status: CampaignStatus): Promise<Campaign>;
+  fundCampaign(campaignId: string, vaultAddress: string, fundingTxHash: string, startDate?: Date): Promise<Campaign>;
+
+  // Campaign Epoch Management
+  createCampaignEpoch(data: CampaignEpochData): Promise<CampaignEpoch>;
+  getCampaignEpoch(campaignId: string, epochNumber: number): Promise<CampaignEpoch | null>;
+  getCampaignEpochs(campaignId: string, limit?: number, offset?: number): Promise<CampaignEpoch[]>;
+  updateCampaignEpoch(epochId: string, updates: { claimed?: string; state?: EpochState; recycledAt?: Date }): Promise<CampaignEpoch>;
+  getActiveEpochs(campaignId?: string): Promise<CampaignEpoch[]>;
+  getClaimingEpochs(): Promise<CampaignEpoch[]>;
 
   // Payout Management
   createPayout(data: PayoutData): Promise<Payout>;
@@ -156,6 +200,7 @@ export interface PersistenceService {
   getPayoutsByUser(userId: string, limit?: number, offset?: number): Promise<Payout[]>;
   getAllPayouts(limit?: number, offset?: number): Promise<Payout[]>;
   getPayoutsByCampaign(campaignId: string, limit?: number, offset?: number): Promise<Payout[]>;
+  getPayoutsByEpoch(epochId: string, limit?: number, offset?: number): Promise<Payout[]>;
   updatePayoutStatus(payoutId: string, status: PayoutStatus, txHash?: string, errorMessage?: string, processedById?: string): Promise<Payout>;
 
   // Event Persistence (Keep for audit trail)
@@ -496,30 +541,40 @@ export class DatabasePersistenceService implements PersistenceService {
 
   // Campaign Management
   async createCampaign(data: CampaignData): Promise<Campaign> {
+    const createData: any = {
+      name: data.name,
+      description: data.description,
+      tokenSymbol: data.tokenSymbol,
+      isNative: data.isNative,
+      chainId: data.chainId,
+      tokenAddress: data.tokenAddress,
+      totalRewardPool: data.totalRewardPool,
+      maxRewardsPerUser: data.maxRewardsPerUser,
+      payoutIntervalSeconds: data.payoutIntervalSeconds,
+      epochRewardCap: data.epochRewardCap,
+      claimWindowSeconds: data.claimWindowSeconds,
+      recycleUnclaimed: data.recycleUnclaimed ?? true,
+      platforms: data.platforms,
+      createdById: data.createdById
+    };
+
+    // Only include dates if they are provided
+    if (data.startDate) {
+      createData.startDate = data.startDate;
+    }
+    if (data.endDate) {
+      createData.endDate = data.endDate;
+    }
+
     return await this.prisma.campaign.create({
-      data: {
-        name: data.name,
-        description: data.description,
-        tokenSymbol: data.tokenSymbol,
-        isNative: data.isNative,
-        chainId: data.chainId,
-        tokenAddress: data.tokenAddress,
-        totalRewardPool: data.totalRewardPool,
-        startDate: data.startDate,
-        endDate: data.endDate,
-        minScore: data.minScore,
-        maxRewardsPerUser: data.maxRewardsPerUser,
-        timeframe: data.timeframe,
-        platforms: data.platforms,
-        createdById: data.createdById
-      }
+      data: createData
     });
   }
 
   async getCampaign(campaignId: string): Promise<Campaign | null> {
     return await this.prisma.campaign.findUnique({
       where: { id: campaignId },
-      include: { payouts: true }
+      include: { payouts: true, epochs: true } as any
     });
   }
 
@@ -539,18 +594,104 @@ export class DatabasePersistenceService implements PersistenceService {
     });
   }
 
+  async updateCampaignStatus(campaignId: string, status: CampaignStatus): Promise<Campaign> {
+    return await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: { status } as any
+    });
+  }
+
+  async fundCampaign(campaignId: string, vaultAddress: string, fundingTxHash: string, startDate?: Date): Promise<Campaign> {
+    return await this.prisma.campaign.update({
+      where: { id: campaignId },
+      data: {
+        isFunded: true,
+        status: 'ACTIVE',
+        vaultAddress,
+        fundingTxHash,
+        startDate: startDate || new Date()
+      } as any
+    });
+  }
+
+  // Campaign Epoch Management
+  async createCampaignEpoch(data: CampaignEpochData): Promise<CampaignEpoch> {
+    return await (this.prisma as any).campaignEpoch.create({
+      data: {
+        campaignId: data.campaignId,
+        epochNumber: data.epochNumber,
+        epochStart: data.epochStart,
+        epochEnd: data.epochEnd,
+        claimWindowEnds: data.claimWindowEnds,
+        allocated: data.allocated,
+        claimed: data.claimed || '0',
+        state: data.state || 'OPEN'
+      }
+    });
+  }
+
+  async getCampaignEpoch(campaignId: string, epochNumber: number): Promise<CampaignEpoch | null> {
+    return await (this.prisma as any).campaignEpoch.findUnique({
+      where: {
+        campaignId_epochNumber: {
+          campaignId,
+          epochNumber
+        }
+      }
+    });
+  }
+
+  async getCampaignEpochs(campaignId: string, limit: number = 50, offset: number = 0): Promise<CampaignEpoch[]> {
+    return await (this.prisma as any).campaignEpoch.findMany({
+      where: { campaignId },
+      orderBy: { epochNumber: 'asc' },
+      take: limit,
+      skip: offset
+    });
+  }
+
+  async updateCampaignEpoch(epochId: string, updates: { claimed?: string; state?: EpochState; recycledAt?: Date }): Promise<CampaignEpoch> {
+    return await (this.prisma as any).campaignEpoch.update({
+      where: { id: epochId },
+      data: updates
+    });
+  }
+
+  async getActiveEpochs(campaignId?: string): Promise<CampaignEpoch[]> {
+    return await (this.prisma as any).campaignEpoch.findMany({
+      where: {
+        state: 'OPEN',
+        ...(campaignId && { campaignId })
+      },
+      orderBy: { epochStart: 'asc' }
+    });
+  }
+
+  async getClaimingEpochs(): Promise<CampaignEpoch[]> {
+    return await (this.prisma as any).campaignEpoch.findMany({
+      where: { state: 'CLAIMING' },
+      orderBy: { claimWindowEnds: 'asc' }
+    });
+  }
+
   // Payout Management
   async createPayout(data: PayoutData): Promise<Payout> {
+    const createData: any = {
+      platformUserId: data.platformUserId,
+      userId: data.userId,
+      campaignId: data.campaignId,
+      amount: data.amount,
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      processedById: data.processedById
+    };
+
+    if (data.epochId) {
+      createData.epochId = data.epochId;
+    }
+
     return await this.prisma.payout.create({
-      data: {
-        platformUserId: data.platformUserId,
-        userId: data.userId,
-        campaignId: data.campaignId,
-        amount: data.amount,
-        periodStart: data.periodStart,
-        periodEnd: data.periodEnd,
-        processedById: data.processedById
-      }
+      data: createData
     });
   }
 
@@ -587,6 +728,16 @@ export class DatabasePersistenceService implements PersistenceService {
       take: limit,
       skip: offset,
       include: { user: true, platformUser: true }
+    });
+  }
+
+  async getPayoutsByEpoch(epochId: string, limit: number = 50, offset: number = 0): Promise<Payout[]> {
+    return await this.prisma.payout.findMany({
+      where: { epochId } as any,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      skip: offset,
+      include: { user: true, platformUser: true, epoch: true } as any
     });
   }
 
