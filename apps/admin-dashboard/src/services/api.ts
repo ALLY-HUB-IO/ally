@@ -194,6 +194,9 @@ class ApiService {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
     isActive?: boolean;
+    isNative?: boolean;
+    chainId?: string;
+    platforms?: string;
     search?: string;
   }): Promise<PaginatedResponse<Campaign>> {
     const response: AxiosResponse<PaginatedResponse<Campaign>> = 

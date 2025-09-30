@@ -92,13 +92,17 @@ export interface Campaign {
   name: string;
   description?: string;
   tokenSymbol: string;
+  isNative: boolean;
+  chainId: string;
   tokenAddress?: string;
   totalRewardPool: string;
   startDate: string;
   endDate: string;
   isActive: boolean;
   minScore?: number;
-  maxRewardPerUser?: string;
+  maxRewardsPerUser?: string;
+  timeframe: number;
+  platforms: string[];
   createdBy: Admin;
   createdAt: string;
   updatedAt: string;
@@ -235,10 +239,14 @@ export interface CampaignForm {
   name: string;
   description?: string;
   tokenSymbol: string;
+  isNative: boolean;
+  chainId: string;
   tokenAddress?: string;
   totalRewardPool: string;
   startDate: string;
   endDate: string;
   minScore?: number;
-  maxRewardPerUser?: string;
+  maxRewardsPerUser?: string;
+  timeframe: number;
+  platforms: string[];
 }
