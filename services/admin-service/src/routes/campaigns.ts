@@ -222,7 +222,7 @@ router.get('/', async (req: Request, res: Response) => {
             totalPayouts: payoutStats._count.id || 0,
             completedPayouts,
             totalPayoutAmount,
-            remainingAmount: (BigInt(campaign.totalRewardPool) - BigInt(totalPayoutAmount)).toString()
+            remainingAmount: (BigInt(campaign.totalRewardPool.toString()) - BigInt(totalPayoutAmount)).toString()
           }
         };
       })
@@ -311,7 +311,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         stats: {
           totalPayouts: payoutStats._count.id || 0,
           totalPayoutAmount,
-          remainingAmount: (BigInt(campaign.totalRewardPool) - BigInt(totalPayoutAmount)).toString(),
+          remainingAmount: (BigInt(campaign.totalRewardPool.toString()) - BigInt(totalPayoutAmount)).toString(),
           statusBreakdown: statusStats.reduce((acc, stat) => {
             acc[stat.status] = {
               count: stat._count.id,
