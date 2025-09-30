@@ -17,14 +17,10 @@ const createCampaignSchema = Joi.object({
   tokenSymbol: Joi.string().min(2).max(10).required(),
   isNative: Joi.boolean().default(false),
   chainId: Joi.string().valid(...SUPPORTED_CHAINS).required(),
-  tokenAddress: Joi.string().when('isNative', {
-    is: false,
-    then: Joi.string().required(),
-    otherwise: Joi.string().optional()
-  }),
+  tokenAddress: Joi.string().optional().allow(''),
   totalRewardPool: Joi.string().pattern(/^\d+$/).required(),
-  startDate: Joi.date().optional(), // Now optional - set after funding
-  endDate: Joi.date().optional(), // Now optional - set after funding
+  startDate: Joi.date().optional().allow(''), // Now optional - set after funding
+  endDate: Joi.date().optional().allow(''), // Now optional - set after funding
   isActive: Joi.boolean().default(true),
   maxRewardsPerUser: Joi.string().pattern(/^\d+$/).optional(),
   payoutIntervalSeconds: Joi.number().integer().min(1).required(), // Replaces timeframe
@@ -32,6 +28,43 @@ const createCampaignSchema = Joi.object({
   claimWindowSeconds: Joi.number().integer().min(1).required(),
   recycleUnclaimed: Joi.boolean().default(true),
   platforms: Joi.array().items(Joi.string().valid(...SUPPORTED_PLATFORMS)).min(1).required()
+}).custom((value, helpers) => {
+  // Token address validation
+  if (value.isNative === false && (!value.tokenAddress || value.tokenAddress.trim() === '')) {
+    return helpers.error('any.custom', { 
+      message: 'tokenAddress is required when isNative is false' 
+    });
+  }
+  
+  // For native tokens, clear tokenAddress if provided
+  if (value.isNative === true && value.tokenAddress) {
+    value.tokenAddress = ''; // Clear tokenAddress for native tokens
+  }
+  
+  // Date validation - handle empty strings
+  const startDate = value.startDate && value.startDate !== '' ? new Date(value.startDate) : null;
+  const endDate = value.endDate && value.endDate !== '' ? new Date(value.endDate) : null;
+  
+  if (startDate && endDate) {
+    if (startDate >= endDate) {
+      return helpers.error('any.custom', { 
+        message: 'Start date must be before end date' 
+      });
+    }
+    
+    // Check if start date allows for at least one payout interval before end date
+    const startTime = startDate.getTime();
+    const endTime = endDate.getTime();
+    const intervalMs = value.payoutIntervalSeconds * 1000;
+    
+    if (startTime >= (endTime - intervalMs)) {
+      return helpers.error('any.custom', { 
+        message: 'Start date must be before (end date - payout interval) to allow for at least one epoch' 
+      });
+    }
+  }
+  
+  return value;
 });
 
 const updateCampaignSchema = Joi.object({
@@ -40,10 +73,10 @@ const updateCampaignSchema = Joi.object({
   tokenSymbol: Joi.string().min(2).max(10).optional(),
   isNative: Joi.boolean().optional(),
   chainId: Joi.string().valid(...SUPPORTED_CHAINS).optional(),
-  tokenAddress: Joi.string().optional(),
+  tokenAddress: Joi.string().optional().allow(''),
   totalRewardPool: Joi.string().pattern(/^\d+$/).optional(),
-  startDate: Joi.date().optional(),
-  endDate: Joi.date().optional(),
+  startDate: Joi.date().optional().allow(''),
+  endDate: Joi.date().optional().allow(''),
   isActive: Joi.boolean().optional(),
   maxRewardsPerUser: Joi.string().pattern(/^\d+$/).optional(),
   payoutIntervalSeconds: Joi.number().integer().min(1).optional(),
@@ -56,6 +89,35 @@ const updateCampaignSchema = Joi.object({
   if (value.isNative === false && !value.tokenAddress) {
     return helpers.error('any.custom', { message: 'tokenAddress is required when isNative is false' });
   }
+  
+  // For native tokens, clear tokenAddress if provided
+  if (value.isNative === true && value.tokenAddress) {
+    value.tokenAddress = ''; // Clear tokenAddress for native tokens
+  }
+  
+  // Date validation - handle empty strings
+  const startDate = value.startDate && value.startDate !== '' ? new Date(value.startDate) : null;
+  const endDate = value.endDate && value.endDate !== '' ? new Date(value.endDate) : null;
+  
+  if (startDate && endDate) {
+    if (startDate >= endDate) {
+      return helpers.error('any.custom', { 
+        message: 'Start date must be before end date' 
+      });
+    }
+    
+    // Check if start date allows for at least one payout interval before end date
+    const startTime = startDate.getTime();
+    const endTime = endDate.getTime();
+    const intervalMs = (value.payoutIntervalSeconds || 604800) * 1000; // Default to 1 week if not provided
+    
+    if (startTime >= (endTime - intervalMs)) {
+      return helpers.error('any.custom', { 
+        message: 'Start date must be before (end date - payout interval) to allow for at least one epoch' 
+      });
+    }
+  }
+  
   return value;
 });
 
@@ -63,7 +125,7 @@ const updateCampaignSchema = Joi.object({
 const fundCampaignSchema = Joi.object({
   vaultAddress: Joi.string().required(),
   fundingTxHash: Joi.string().required(),
-  startDate: Joi.date().optional()
+  startDate: Joi.date().optional().allow('')
 });
 
 const campaignStatusSchema = Joi.object({
@@ -345,11 +407,17 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     const adminId = req.admin!.id;
 
+    // Convert empty strings to null for optional date fields
+    const campaignData = {
+      ...value,
+      startDate: (value.startDate && value.startDate !== '') ? value.startDate : null,
+      endDate: (value.endDate && value.endDate !== '') ? value.endDate : null,
+      tokenAddress: (value.tokenAddress && value.tokenAddress !== '') ? value.tokenAddress : null,
+      createdById: adminId
+    };
+
     const campaign = await prisma.campaign.create({
-      data: {
-        ...value,
-        createdById: adminId
-      },
+      data: campaignData,
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
@@ -398,9 +466,17 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
+    // Convert empty strings to null for optional date fields
+    const updateData = {
+      ...value,
+      startDate: (value.startDate && value.startDate !== '') ? value.startDate : null,
+      endDate: (value.endDate && value.endDate !== '') ? value.endDate : null,
+      tokenAddress: (value.tokenAddress && value.tokenAddress !== '') ? value.tokenAddress : null,
+    };
+
     const campaign = await prisma.campaign.update({
       where: { id },
-      data: value,
+      data: updateData,
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
@@ -473,9 +549,37 @@ router.post('/:id/activate', async (req: AuthenticatedRequest, res: Response) =>
   try {
     const { id } = req.params;
 
+    // Check if campaign exists
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id }
+    });
+
+    if (!existingCampaign) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    const currentStatus = (existingCampaign as any).status;
+    const isFunded = (existingCampaign as any).isFunded;
+
+    // Validate activation rules
+    const canActivate = (currentStatus === 'DRAFT' && isFunded) || currentStatus === 'PAUSED';
+    
+    if (!canActivate) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Campaign can only be activated if DRAFT+funded or PAUSED'
+      });
+    }
+
     const campaign = await prisma.campaign.update({
       where: { id },
-      data: { isActive: true },
+      data: { 
+        isActive: true,
+        status: 'ACTIVE' // Ensure status is synchronized
+      } as any,
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
@@ -502,9 +606,34 @@ router.post('/:id/deactivate', async (req: AuthenticatedRequest, res: Response) 
   try {
     const { id } = req.params;
 
+    // Check if campaign exists
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id }
+    });
+
+    if (!existingCampaign) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    const currentStatus = (existingCampaign as any).status;
+
+    // Validate deactivation rules - can only deactivate ACTIVE campaigns
+    if (currentStatus !== 'ACTIVE') {
+      return res.status(400).json({
+        ok: false,
+        error: 'Campaign can only be deactivated when ACTIVE'
+      });
+    }
+
     const campaign = await prisma.campaign.update({
       where: { id },
-      data: { isActive: false },
+      data: { 
+        isActive: false,
+        status: 'PAUSED' // Set status to PAUSED when deactivating
+      } as any,
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
@@ -564,9 +693,10 @@ router.post('/:id/fund', async (req: AuthenticatedRequest, res: Response) => {
       data: {
         isFunded: true,
         status: 'ACTIVE',
+        isActive: true, // Ensure isActive is synchronized with status
         vaultAddress: value.vaultAddress,
         fundingTxHash: value.fundingTxHash,
-        startDate: value.startDate || new Date()
+        startDate: (value.startDate && value.startDate !== '') ? value.startDate : new Date()
       } as any,
       include: {
         createdBy: {
@@ -615,25 +745,51 @@ router.post('/:id/status', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
+    // Validate status transitions with funding requirements
+    const currentStatus = (existingCampaign as any).status;
+    const isFunded = (existingCampaign as any).isFunded;
+    
+    // Check if trying to set to ACTIVE without funding
+    if (value.status === 'ACTIVE' && !isFunded) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Campaign cannot be set to ACTIVE without funding'
+      });
+    }
+    
+    // Check if trying to set to CANCELED/PAUSED/COMPLETED when not ACTIVE
+    if (['CANCELED', 'PAUSED', 'COMPLETED'].includes(value.status) && currentStatus !== 'ACTIVE') {
+      return res.status(400).json({
+        ok: false,
+        error: `Status can only be ${value.status} when campaign is ACTIVE`
+      });
+    }
+    
     // Validate status transitions
     const validTransitions: Record<string, string[]> = {
-      'DRAFT': ['ACTIVE', 'CANCELED'],
+      'DRAFT': ['ACTIVE', 'CANCELED'], // ACTIVE only if funded (checked above)
       'ACTIVE': ['PAUSED', 'COMPLETED', 'CANCELED'],
       'PAUSED': ['ACTIVE', 'COMPLETED', 'CANCELED'],
       'COMPLETED': [],
       'CANCELED': []
     };
 
-    if (!validTransitions[(existingCampaign as any).status]?.includes(value.status)) {
+    if (!validTransitions[currentStatus]?.includes(value.status)) {
       return res.status(400).json({
         ok: false,
-        error: `Invalid status transition from ${(existingCampaign as any).status} to ${value.status}`
+        error: `Invalid status transition from ${currentStatus} to ${value.status}`
       });
     }
 
+    // Determine isActive based on status
+    const isActive = value.status === 'ACTIVE';
+    
     const campaign = await prisma.campaign.update({
       where: { id },
-      data: { status: value.status } as any,
+      data: { 
+        status: value.status,
+        isActive: isActive // Synchronize isActive with status
+      } as any,
       include: {
         createdBy: {
           select: { id: true, name: true, email: true }
