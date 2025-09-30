@@ -228,30 +228,50 @@ model Admin {
 
 // Token reward campaigns
 model Campaign {
-  id                String     @id @default(cuid())
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  id                String    @id @default(cuid())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
   name              String
   description       String?
   tokenSymbol       String
-  isNative          Boolean    @default(false)
+  isNative          Boolean   @default(false)
   chainId           String?
   tokenAddress      String?
-  totalRewardPool   String
-  startDate         DateTime
-  endDate           DateTime
-  isActive          Boolean    @default(true)
-  minScore          Float?
-  maxRewardsPerUser String?
-  timeframe         Int
+
+  // amounts: switch to Decimal(78,0) (big int, wei-like)
+  totalRewardPool   Decimal   @db.Decimal(78, 0)
+  maxRewardsPerUser Decimal?  @db.Decimal(78, 0)
+
+  // scheduling
+  startDate         DateTime?        // optional: set after funding
+  endDate           DateTime?        // optional
+  isActive          Boolean   @default(true)
+
+  // funding/state
+  isFunded          Boolean   @default(false)
+  status            CampaignStatus @default(DRAFT)
+  vaultAddress      String?
+  fundingTxHash     String?
+
+  // epochs config
+  payoutIntervalSeconds Int        // replaces timeframe (e.g., 604800 for 1 week)
+  epochRewardCap        Decimal    @db.Decimal(78, 0) // max distributed per epoch
+  claimWindowSeconds    Int        // e.g., 604800 (7 days) after epoch end
+  recycleUnclaimed      Boolean    @default(true)
+
   platforms         String[]
   createdById       String
-  createdBy         Admin      @relation(fields: [createdById], references: [id])
-  
+  createdBy         Admin     @relation(fields: [createdById], references: [id])
+
+  // relations
   payouts           Payout[]
-  
+  epochs            CampaignEpoch[]
+
   @@index([startDate, endDate])
   @@index([isActive])
+  @@index([status])
+  @@index([isFunded])
   @@index([platforms])
 }
 
@@ -261,25 +281,63 @@ model Payout {
   createdAt      DateTime     @default(now())
   payoutAt       DateTime?
   status         PayoutStatus @default(PENDING)
+
   periodStart    DateTime
   periodEnd      DateTime
+
   platformUserId String
   platformUser   PlatformUser @relation(fields: [platformUserId], references: [id])
+
   userId         String
   user           User         @relation(fields: [userId], references: [id])
+
   campaignId     String
   campaign       Campaign     @relation(fields: [campaignId], references: [id])
-  amount         String
+
+  // amounts: Decimal for on-chain integer
+  amount         Decimal      @db.Decimal(78, 0)
+
   txHash         String?
   errorMessage   String?
   processedById  String?
   processedBy    Admin?       @relation(fields: [processedById], references: [id])
-  
+
+  // NEW: link to epoch (nullable for historical rows)
+  epochId        String?
+  epoch          CampaignEpoch? @relation(fields: [epochId], references: [id], onDelete: SetNull)
+
   @@index([userId, campaignId])
   @@index([status])
   @@index([createdAt])
   @@index([periodStart, periodEnd])
   @@index([platformUserId, campaignId])
+  @@index([epochId])
+}
+
+// Campaign epochs for recurring payouts
+model CampaignEpoch {
+  id               String    @id @default(cuid())
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  campaignId       String
+  campaign         Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  epochNumber      Int       // 1,2,3,...
+  epochStart       DateTime
+  epochEnd         DateTime               // = epochStart + payoutIntervalSeconds
+  claimWindowEnds  DateTime               // = epochEnd + claimWindowSeconds
+
+  allocated        Decimal   @db.Decimal(78, 0)  // typically = epochRewardCap or remaining pool
+  claimed          Decimal   @db.Decimal(78, 0) @default(0)
+  recycledAt       DateTime?
+  state            EpochState @default(OPEN)     // OPEN|CLAIMING|RECYCLED|EXPIRED|CLOSED
+
+  payouts          Payout[]
+
+  @@unique([campaignId, epochNumber])
+  @@index([campaignId, state])
+  @@index([epochStart, epochEnd, claimWindowEnds])
 }
 
 // System configuration and settings
@@ -308,4 +366,20 @@ enum RelationKind {
   REPOST_OF
   THREAD_PARENT
   MENTIONS
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  CANCELED
+}
+
+enum EpochState {
+  OPEN        // accrual/earning period
+  CLAIMING    // after epochEnd, within claim window
+  RECYCLED    // unclaimed moved back
+  EXPIRED     // claim window ended without recycle (if disabled)
+  CLOSED      // finalized
 }

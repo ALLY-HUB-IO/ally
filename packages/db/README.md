@@ -6,7 +6,7 @@ This package provides the Prisma client and schema for Ally's Postgres database.
 - Prisma schema and generated client
 - Helper to get a shared `PrismaClient` instance
 - Comprehensive persistence service with normalized data structure
-- Migrations for all tables: `User`, `PlatformUser`, `Source`, `Message`, `Score`, `Reaction`, `MessageRelation`, `DiscordMessageDetail`, `MetricSnapshot`, `IngestCheckpoint`, `Campaign`, `Payout`, `Admin`, `SystemConfig`, `EventsRaw`
+- Migrations for all tables: `User`, `PlatformUser`, `Source`, `Message`, `Score`, `Reaction`, `MessageRelation`, `DiscordMessageDetail`, `MetricSnapshot`, `IngestCheckpoint`, `Campaign`, `CampaignEpoch`, `Payout`, `Admin`, `SystemConfig`, `EventsRaw`
 
 ### Prerequisites
 - Docker (for local Postgres)
@@ -302,13 +302,18 @@ export async function dbHealth() {
 - `id`, `email` (unique), `name`, `passwordHash`, `isActive`, `lastLoginAt?`
 - Relations: `campaigns`, `payouts`
 
-**Campaign**: Token reward campaigns
-- `id`, `name`, `description?`, `tokenSymbol`, `isNative`, `chainId?`, `tokenAddress?`, `totalRewardPool`, `startDate`, `endDate`, `isActive`, `minScore?`, `maxRewardsPerUser?`, `timeframe`, `platforms[]`, `createdById -> Admin`
-- Relations: `createdBy`, `payouts`
+**Campaign**: Token reward campaigns with epoch-based distribution
+- `id`, `name`, `description?`, `tokenSymbol`, `isNative`, `chainId?`, `tokenAddress?`, `totalRewardPool` (Decimal), `startDate?`, `endDate?`, `isActive`, `isFunded`, `status` (DRAFT|ACTIVE|PAUSED|COMPLETED|CANCELED), `vaultAddress?`, `fundingTxHash?`, `maxRewardsPerUser?` (Decimal), `payoutIntervalSeconds`, `epochRewardCap` (Decimal), `claimWindowSeconds`, `recycleUnclaimed`, `platforms[]`, `createdById -> Admin`
+- Relations: `createdBy`, `payouts`, `epochs`
+
+**CampaignEpoch**: Individual payout windows for recurring campaigns
+- `id`, `campaignId -> Campaign`, `epochNumber`, `epochStart`, `epochEnd`, `claimWindowEnds`, `allocated` (Decimal), `claimed` (Decimal), `recycledAt?`, `state` (OPEN|CLAIMING|RECYCLED|EXPIRED|CLOSED)
+- Relations: `campaign`, `payouts`
+- Unique constraint: `(campaignId, epochNumber)`
 
 **Payout**: Individual user payouts
-- `id`, `payoutAt?`, `status` (PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED), `periodStart`, `periodEnd`, `platformUserId -> PlatformUser`, `userId -> User`, `campaignId -> Campaign`, `amount`, `txHash?`, `errorMessage?`, `processedById? -> Admin`
-- Relations: `platformUser`, `user`, `campaign`, `processedBy`
+- `id`, `payoutAt?`, `status` (PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED), `periodStart`, `periodEnd`, `platformUserId -> PlatformUser`, `userId -> User`, `campaignId -> Campaign`, `amount` (Decimal), `txHash?`, `errorMessage?`, `processedById? -> Admin`, `epochId? -> CampaignEpoch`
+- Relations: `platformUser`, `user`, `campaign`, `processedBy`, `epoch`
 
 #### System & Audit
 
@@ -369,11 +374,26 @@ The persistence service provides a clean interface for all database operations:
 
 #### Campaign & Payout Management
 - `createCampaign(data)` - Create reward campaign
-- `getCampaign(campaignId)` - Get campaign details
+- `getCampaign(campaignId)` - Get campaign details with epochs
 - `getAllCampaigns(limit?, offset?)` - List all campaigns
-- `createPayout(data)` - Create payout record
+- `updateCampaign(campaignId, updates)` - Update campaign
+- `updateCampaignStatus(campaignId, status)` - Update campaign status
+- `fundCampaign(campaignId, vaultAddress, fundingTxHash, startDate?)` - Fund and activate campaign
+
+#### Campaign Epoch Management
+- `createCampaignEpoch(data)` - Create new epoch for campaign
+- `getCampaignEpoch(campaignId, epochNumber)` - Get specific epoch
+- `getCampaignEpochs(campaignId, limit?, offset?)` - List campaign epochs
+- `updateCampaignEpoch(epochId, updates)` - Update epoch (claimed amount, state, etc.)
+- `getActiveEpochs(campaignId?)` - Get all open epochs
+- `getClaimingEpochs()` - Get epochs in claiming phase
+
+#### Payout Management
+- `createPayout(data)` - Create payout record (with optional epochId)
+- `getPayout(payoutId)` - Get payout details
 - `getPayoutsByUser(userId, limit?, offset?)` - Get user's payouts
 - `getPayoutsByCampaign(campaignId, limit?, offset?)` - Get campaign payouts
+- `getPayoutsByEpoch(epochId, limit?, offset?)` - Get epoch payouts
 - `updatePayoutStatus(payoutId, status, txHash?, errorMessage?, processedById?)` - Update payout
 
 ### Key Features
@@ -383,7 +403,7 @@ The persistence service provides a clean interface for all database operations:
 - **Rich Relationships**: Support for replies, quotes, retweets, mentions, thread management
 - **Engagement Tracking**: Per-message metrics over time with immutable snapshots
 - **Reliable Ingestion**: Checkpoint system for resumable data processing
-- **Campaign System**: Token rewards with flexible criteria and multi-platform support
+- **Epoch-Based Campaign System**: Recurring token rewards with automatic fund recycling and flexible payout windows
 - **Thread Management**: Complete Discord thread lifecycle handling (creation, deletion, message relations)
 - **Audit Trail**: Complete event history preservation
 - **Type Safety**: Full TypeScript support with generated types
@@ -413,3 +433,4 @@ npx --yes prisma migrate reset
 - `20250917150703_add_admin_features` - Added Admin, Campaign, Payout, SystemConfig tables
 - `20250924064336_update_metric_snapshot_and_add_missing_models` - Normalized schema with PlatformUser, Source, MessageRelation, DiscordMessageDetail, MetricSnapshot, IngestCheckpoint
 - `20250924120000_remove_interactions_table` - Removed redundant Interactions table, consolidated into enhanced Message model
+- `20250930130842_epoch_based_campaigns` - Added epoch-based campaign system with CampaignEpoch model, updated Campaign and Payout models for recurring payouts
