@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as Joi from 'joi';
+import Joi from 'joi';
 
 export interface Blockchain {
   id: string;
@@ -49,6 +49,25 @@ class ConfigService {
 
   constructor(configPath?: string) {
     this.configPath = configPath || path.join(process.cwd(), 'infra', 'supported.json');
+    if (configPath) {
+      this.configPath = configPath;
+    } else {
+      // Try multiple possible locations for the config file
+      const possiblePaths = [
+        path.join(process.cwd(), 'infra', 'supported.json'),
+        path.join(process.cwd(), '..', 'infra', 'supported.json'),
+        path.join(process.cwd(), '..', '..', 'infra', 'supported.json'),
+        '/app/infra/supported.json'
+      ];
+      
+      // Find the first existing path
+      for (const possiblePath of possiblePaths) {
+        if (fs.existsSync(possiblePath)) {
+          this.configPath = possiblePath;
+          break;
+        }
+      }
+    }
   }
 
   /**
