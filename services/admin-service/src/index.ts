@@ -11,6 +11,7 @@ import { epochRoutes } from './routes/epochs';
 import { payoutRoutes } from './routes/payouts';
 import { statsRoutes } from './routes/stats';
 import { authenticateToken } from './middleware/auth';
+import { configService } from '@ally/config';
 
 const PORT = process.env.ADMIN_PORT ? Number(process.env.ADMIN_PORT) : 8083;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -72,6 +73,15 @@ app.use('*', (req: Request, res: Response) => {
     path: req.originalUrl
   });
 });
+
+// Initialize configuration on startup
+try {
+  const config = configService.loadConfig();
+  console.log(`[admin-service] Configuration loaded: ${config.blockchains.length} blockchains, ${config.platforms.length} platforms`);
+} catch (error) {
+  console.error('[admin-service] Failed to load configuration:', error);
+  process.exit(1);
+}
 
 const server = app.listen(PORT, () => {
   console.log(`[admin-service] Server running on port ${PORT}`);
