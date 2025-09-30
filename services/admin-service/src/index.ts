@@ -7,6 +7,7 @@ import { authRoutes } from './routes/auth';
 import { userRoutes } from './routes/users';
 import { messageRoutes } from './routes/messages';
 import { campaignRoutes } from './routes/campaigns';
+import { epochRoutes } from './routes/epochs';
 import { payoutRoutes } from './routes/payouts';
 import { statsRoutes } from './routes/stats';
 import { authenticateToken } from './middleware/auth';
@@ -49,6 +50,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/messages', authenticateToken, messageRoutes);
 app.use('/api/campaigns', authenticateToken, campaignRoutes);
+app.use('/api/epochs', authenticateToken, epochRoutes);
 app.use('/api/payouts', authenticateToken, payoutRoutes);
 app.use('/api/stats', authenticateToken, statsRoutes);
 

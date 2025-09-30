@@ -22,12 +22,14 @@ const createCampaignSchema = Joi.object({
     otherwise: Joi.string().optional()
   }),
   totalRewardPool: Joi.string().pattern(/^\d+$/).required(),
-  startDate: Joi.date().required(),
-  endDate: Joi.date().greater(Joi.ref('startDate')).required(),
+  startDate: Joi.date().optional(), // Now optional - set after funding
+  endDate: Joi.date().optional(), // Now optional - set after funding
   isActive: Joi.boolean().default(true),
-  minScore: Joi.number().min(0).max(1).optional(),
   maxRewardsPerUser: Joi.string().pattern(/^\d+$/).optional(),
-  timeframe: Joi.number().integer().min(1).required(),
+  payoutIntervalSeconds: Joi.number().integer().min(1).required(), // Replaces timeframe
+  epochRewardCap: Joi.string().pattern(/^\d+$/).required(),
+  claimWindowSeconds: Joi.number().integer().min(1).required(),
+  recycleUnclaimed: Joi.boolean().default(true),
   platforms: Joi.array().items(Joi.string().valid(...SUPPORTED_PLATFORMS)).min(1).required()
 });
 
@@ -42,9 +44,11 @@ const updateCampaignSchema = Joi.object({
   startDate: Joi.date().optional(),
   endDate: Joi.date().optional(),
   isActive: Joi.boolean().optional(),
-  minScore: Joi.number().min(0).max(1).optional(),
   maxRewardsPerUser: Joi.string().pattern(/^\d+$/).optional(),
-  timeframe: Joi.number().integer().min(1).optional(),
+  payoutIntervalSeconds: Joi.number().integer().min(1).optional(),
+  epochRewardCap: Joi.string().pattern(/^\d+$/).optional(),
+  claimWindowSeconds: Joi.number().integer().min(1).optional(),
+  recycleUnclaimed: Joi.boolean().optional(),
   platforms: Joi.array().items(Joi.string().valid(...SUPPORTED_PLATFORMS)).min(1).optional()
 }).custom((value, helpers) => {
   // Custom validation for conditional tokenAddress requirement
@@ -54,13 +58,26 @@ const updateCampaignSchema = Joi.object({
   return value;
 });
 
+// New validation schemas for epoch-based features
+const fundCampaignSchema = Joi.object({
+  vaultAddress: Joi.string().required(),
+  fundingTxHash: Joi.string().required(),
+  startDate: Joi.date().optional()
+});
+
+const campaignStatusSchema = Joi.object({
+  status: Joi.string().valid('DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELED').required()
+});
+
 const campaignQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).default(1),
   limit: Joi.number().integer().min(1).max(100).default(20),
-  sortBy: Joi.string().valid('createdAt', 'startDate', 'endDate', 'name', 'chainId', 'timeframe').default('createdAt'),
+  sortBy: Joi.string().valid('createdAt', 'startDate', 'endDate', 'name', 'chainId', 'payoutIntervalSeconds').default('createdAt'),
   sortOrder: Joi.string().valid('asc', 'desc').default('desc'),
   isActive: Joi.boolean().optional(),
   isNative: Joi.boolean().optional(),
+  isFunded: Joi.boolean().optional(),
+  status: Joi.string().valid('DRAFT', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELED').optional(),
   chainId: Joi.string().valid(...SUPPORTED_CHAINS).optional(),
   platforms: Joi.string().optional(), // Comma-separated list of platforms
   search: Joi.string().optional()
@@ -78,7 +95,7 @@ router.get('/', async (req: Request, res: Response) => {
       });
     }
 
-    const { page, limit, sortBy, sortOrder, isActive, isNative, chainId, platforms, search } = value;
+    const { page, limit, sortBy, sortOrder, isActive, isNative, isFunded, status, chainId, platforms, search } = value;
     const offset = (page - 1) * limit;
 
     // Build where clause
@@ -90,6 +107,14 @@ router.get('/', async (req: Request, res: Response) => {
 
     if (isNative !== undefined) {
       where.isNative = isNative;
+    }
+
+    if (isFunded !== undefined) {
+      where.isFunded = isFunded;
+    }
+
+    if (status) {
+      where.status = status;
     }
 
     if (chainId) {
@@ -120,9 +145,22 @@ router.get('/', async (req: Request, res: Response) => {
           select: { id: true, name: true, email: true }
         },
         _count: {
-          select: { payouts: true }
-        }
-      },
+          select: { payouts: true, epochs: true } as any
+        },
+        epochs: {
+          select: {
+            id: true,
+            epochNumber: true,
+            state: true,
+            allocated: true,
+            claimed: true,
+            epochStart: true,
+            epochEnd: true
+          },
+          orderBy: { epochNumber: 'desc' },
+          take: 3 // Get latest 3 epochs for summary
+        } as any
+      } as any,
       orderBy: { [sortBy]: sortOrder },
       skip: offset,
       take: limit
@@ -204,8 +242,16 @@ router.get('/:id', async (req: Request, res: Response) => {
             }
           },
           orderBy: { createdAt: 'desc' }
-        }
-      }
+        },
+        epochs: {
+          include: {
+            _count: {
+              select: { payouts: true }
+            }
+          },
+          orderBy: { epochNumber: 'asc' }
+        } as any
+      } as any
     });
 
     if (!campaign) {
@@ -450,6 +496,135 @@ router.post('/:id/deactivate', async (req: AuthenticatedRequest, res: Response) 
     });
   } catch (error) {
     console.error('Deactivate campaign error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/campaigns/:id/fund - Fund campaign
+router.post('/:id/fund', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { error, value } = fundCampaignSchema.validate(req.body);
+    
+    if (error) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Validation error',
+        details: error.details[0].message
+      });
+    }
+
+    // Check if campaign exists
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id }
+    });
+
+    if (!existingCampaign) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    if ((existingCampaign as any).isFunded) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Campaign is already funded'
+      });
+    }
+
+    const campaign = await prisma.campaign.update({
+      where: { id },
+      data: {
+        isFunded: true,
+        status: 'ACTIVE',
+        vaultAddress: value.vaultAddress,
+        fundingTxHash: value.fundingTxHash,
+        startDate: value.startDate || new Date()
+      } as any,
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    });
+
+    res.json({
+      ok: true,
+      data: campaign,
+      message: 'Campaign funded successfully'
+    });
+  } catch (error) {
+    console.error('Fund campaign error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/campaigns/:id/status - Update campaign status
+router.post('/:id/status', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { error, value } = campaignStatusSchema.validate(req.body);
+    
+    if (error) {
+      return res.status(400).json({
+        ok: false,
+        error: 'Validation error',
+        details: error.details[0].message
+      });
+    }
+
+    // Check if campaign exists
+    const existingCampaign = await prisma.campaign.findUnique({
+      where: { id }
+    });
+
+    if (!existingCampaign) {
+      return res.status(404).json({
+        ok: false,
+        error: 'Campaign not found'
+      });
+    }
+
+    // Validate status transitions
+    const validTransitions: Record<string, string[]> = {
+      'DRAFT': ['ACTIVE', 'CANCELED'],
+      'ACTIVE': ['PAUSED', 'COMPLETED', 'CANCELED'],
+      'PAUSED': ['ACTIVE', 'COMPLETED', 'CANCELED'],
+      'COMPLETED': [],
+      'CANCELED': []
+    };
+
+    if (!validTransitions[(existingCampaign as any).status]?.includes(value.status)) {
+      return res.status(400).json({
+        ok: false,
+        error: `Invalid status transition from ${(existingCampaign as any).status} to ${value.status}`
+      });
+    }
+
+    const campaign = await prisma.campaign.update({
+      where: { id },
+      data: { status: value.status } as any,
+      include: {
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        }
+      }
+    });
+
+    res.json({
+      ok: true,
+      data: campaign,
+      message: `Campaign status updated to ${value.status}`
+    });
+  } catch (error) {
+    console.error('Update campaign status error:', error);
     res.status(500).json({
       ok: false,
       error: 'Internal server error'
