@@ -29,6 +29,7 @@ import {
   OutlinedInput,
   Tooltip,
   FormHelperText,
+  Collapse,
 } from '@mui/material';
 import { 
   Add as AddIcon,
@@ -41,9 +42,11 @@ import {
   ExpandLess as ExpandLessIcon,
   AccountBalance as FundIcon,
   Settings as StatusIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { Campaign, CampaignForm, CampaignFundingForm, CampaignStatusForm, CampaignEpoch } from '../types';
 import { apiService } from '../services/api';
+import { getErrorMessage } from '../utils/errorUtils';
 
 // Supported chains and platforms will be loaded from the backend
 let SUPPORTED_CHAINS: Array<{ value: string; label: string }> = [];
@@ -53,6 +56,7 @@ export const CampaignsPage: React.FC = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [configLoaded, setConfigLoaded] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
@@ -89,6 +93,19 @@ export const CampaignsPage: React.FC = () => {
     status: 'DRAFT',
   });
 
+  const clearError = () => {
+    setError('');
+  };
+
+  const clearSuccess = () => {
+    setSuccess('');
+  };
+
+  const clearMessages = () => {
+    setError('');
+    setSuccess('');
+  };
+
   const fetchCampaigns = useCallback(async () => {
     try {
       setLoading(true);
@@ -98,8 +115,9 @@ export const CampaignsPage: React.FC = () => {
       });
       setCampaigns(response.data);
       setTotal(response.pagination.total);
+      clearMessages(); // Clear any previous messages
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load campaigns');
+      setError(getErrorMessage(err, 'Failed to load campaigns'));
     } finally {
       setLoading(false);
     }
@@ -113,9 +131,10 @@ export const CampaignsPage: React.FC = () => {
         SUPPORTED_CHAINS = config.blockchains;
         SUPPORTED_PLATFORMS = config.platforms;
         setConfigLoaded(true);
+        clearMessages(); // Clear any previous messages
       } catch (error) {
         console.error('Failed to load supported configuration:', error);
-        setError('Failed to load configuration. Please refresh the page.');
+        setError(getErrorMessage(error, 'Failed to load configuration. Please refresh the page.'));
       }
     };
 
@@ -127,6 +146,16 @@ export const CampaignsPage: React.FC = () => {
       fetchCampaigns();
     }
   }, [fetchCampaigns, configLoaded]);
+
+  // Auto-dismiss success messages after 5 seconds
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -183,6 +212,7 @@ export const CampaignsPage: React.FC = () => {
   const handleCloseDialog = () => {
     setDialogOpen(false);
     setEditingCampaign(null);
+    // Don't clear messages - let admin see any error messages even after closing dialog
   };
 
   const handleFormChange = (field: keyof CampaignForm) => (
@@ -227,13 +257,15 @@ export const CampaignsPage: React.FC = () => {
     try {
       if (editingCampaign) {
         await apiService.updateCampaign(editingCampaign.id, formData);
+        setSuccess('Campaign updated successfully');
       } else {
         await apiService.createCampaign(formData);
+        setSuccess('Campaign created successfully');
       }
       handleCloseDialog();
       fetchCampaigns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save campaign');
+      setError(getErrorMessage(err, 'Failed to save campaign'));
     }
   };
 
@@ -241,9 +273,10 @@ export const CampaignsPage: React.FC = () => {
     if (window.confirm(`Are you sure you want to delete "${campaign.name}"?`)) {
       try {
         await apiService.deleteCampaign(campaign.id);
+        setSuccess('Campaign deleted successfully');
         fetchCampaigns();
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to delete campaign');
+        setError(getErrorMessage(err, 'Failed to delete campaign'));
       }
     }
   };
@@ -252,12 +285,14 @@ export const CampaignsPage: React.FC = () => {
     try {
       if (campaign.isActive) {
         await apiService.deactivateCampaign(campaign.id);
+        setSuccess('Campaign deactivated successfully');
       } else {
         await apiService.activateCampaign(campaign.id);
+        setSuccess('Campaign activated successfully');
       }
       fetchCampaigns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to toggle campaign status');
+      setError(getErrorMessage(err, 'Failed to toggle campaign status'));
     }
   };
 
@@ -284,6 +319,7 @@ export const CampaignsPage: React.FC = () => {
   const handleCloseFundingDialog = () => {
     setFundingDialogOpen(false);
     setSelectedCampaign(null);
+    // Don't clear messages - let admin see any error messages even after closing dialog
   };
 
   const handleOpenStatusDialog = (campaign: Campaign) => {
@@ -295,16 +331,18 @@ export const CampaignsPage: React.FC = () => {
   const handleCloseStatusDialog = () => {
     setStatusDialogOpen(false);
     setSelectedCampaign(null);
+    // Don't clear messages - let admin see any error messages even after closing dialog
   };
 
   const handleFundCampaign = async () => {
     if (!selectedCampaign) return;
     try {
       await apiService.fundCampaign(selectedCampaign.id, fundingData);
+      setSuccess('Campaign funded successfully');
       handleCloseFundingDialog();
       fetchCampaigns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fund campaign');
+      setError(getErrorMessage(err, 'Failed to fund campaign'));
     }
   };
 
@@ -312,10 +350,11 @@ export const CampaignsPage: React.FC = () => {
     if (!selectedCampaign) return;
     try {
       await apiService.updateCampaignStatus(selectedCampaign.id, statusData);
+      setSuccess('Campaign status updated successfully');
       handleCloseStatusDialog();
       fetchCampaigns();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update campaign status');
+      setError(getErrorMessage(err, 'Failed to update campaign status'));
     }
   };
 
@@ -381,11 +420,47 @@ export const CampaignsPage: React.FC = () => {
         </Button>
       </Box>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+      <Collapse in={!!error}>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2 }}
+          action={
+            <IconButton
+              aria-label="close"
+              color="inherit"
+              size="small"
+              onClick={clearError}
+            >
+              <CloseIcon fontSize="inherit" />
+            </IconButton>
+          }
+        >
+          <Typography variant="body2" component="div">
+            {error}
+          </Typography>
         </Alert>
-      )}
+      </Collapse>
+
+      <Collapse in={!!success}>
+        <Alert 
+          severity="success" 
+          sx={{ mb: 2 }}
+          action={
+            <IconButton
+              aria-label="close"
+              color="inherit"
+              size="small"
+              onClick={clearSuccess}
+            >
+              <CloseIcon fontSize="inherit" />
+            </IconButton>
+          }
+        >
+          <Typography variant="body2" component="div">
+            {success}
+          </Typography>
+        </Alert>
+      </Collapse>
 
       <TableContainer component={Paper}>
         <Table>
