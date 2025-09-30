@@ -1,8 +1,16 @@
 import { contracts, chainAdapters } from "chainsig.js";
 import { createPublicClient, http } from "viem";
+import { configService } from "@ally/config";
 
-// Centralized RPC configuration
-export const getRpcUrl = (chain: string = "theta-365") => {
+// Centralized RPC configuration using the config service
+export const getRpcUrl = (chain: string = "theta-testnet") => {
+  // Try to get RPC URL from centralized config first
+  const rpcUrl = configService.getRpcUrl(chain);
+  if (rpcUrl) {
+    return rpcUrl;
+  }
+
+  // Fallback to hardcoded values for backward compatibility
   switch (chain) {
     case "theta-361":
       return "https://eth-rpc-api.thetatoken.org/rpc";

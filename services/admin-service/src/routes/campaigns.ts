@@ -2,12 +2,13 @@ import { Router, Request, Response } from 'express';
 import * as Joi from 'joi';
 import { prisma } from '../db/client';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { configService } from '@ally/config';
 
 const router = Router();
 
-// Supported chains and platforms
-const SUPPORTED_CHAINS = ['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'base', 'near', 'theta', 'theta-testnet'];
-const SUPPORTED_PLATFORMS = ['discord', 'twitter', 'telegram', 'reddit'];
+// Get supported chains and platforms from centralized config
+const SUPPORTED_CHAINS = configService.getSupportedChainIds();
+const SUPPORTED_PLATFORMS = configService.getSupportedPlatformIds();
 
 // Validation schemas
 const createCampaignSchema = Joi.object({
@@ -81,6 +82,28 @@ const campaignQuerySchema = Joi.object({
   chainId: Joi.string().valid(...SUPPORTED_CHAINS).optional(),
   platforms: Joi.string().optional(), // Comma-separated list of platforms
   search: Joi.string().optional()
+});
+
+// GET /api/campaigns/supported - Get supported chains and platforms
+router.get('/supported', async (req: Request, res: Response) => {
+  try {
+    const blockchains = configService.getBlockchainsForFrontend();
+    const platforms = configService.getPlatformsForFrontend();
+
+    res.json({
+      ok: true,
+      data: {
+        blockchains,
+        platforms
+      }
+    });
+  } catch (error) {
+    console.error('Get supported config error:', error);
+    res.status(500).json({
+      ok: false,
+      error: 'Internal server error'
+    });
+  }
 });
 
 // GET /api/campaigns - Get all campaigns
