@@ -22,6 +22,23 @@ The goal is to create:
 - Collect data for fine-tuning AI models
 - Cross-chain reward payouts via secure shade agent integration
 
+## ⚙️ Configuration System
+
+ALLY-Hub uses a centralized configuration system for managing supported blockchains and social platforms. This eliminates hardcoded values and makes it easy to add new integrations without code changes.
+
+**Key Features:**
+- 📁 Centralized config in `infra/supported.json`
+- ✅ Runtime validation with clear error messages
+- 🔄 Dynamic loading across all services
+- 🎯 Type-safe configuration access
+- 🚀 Easy addition of new blockchains/platforms
+
+**Supported Blockchains:** Ethereum, Polygon, BSC, Arbitrum, Optimism, Base, NEAR, Theta, Theta Testnet
+
+**Supported Platforms:** Discord, Twitter, Telegram, Reddit
+
+See [`infra/README.md`](infra/README.md) for detailed configuration documentation.
+
 ---
 
 ## 📁 Repository Structure (current)
@@ -31,6 +48,7 @@ ally/
 ├── apps/
 │   └── website/                 # Static public site (HTML/CSS)
 ├── packages/
+│   ├── config/                  # Centralized configuration service
 │   ├── db/                      # Prisma schema/client for Postgres
 │   ├── events/                  # Redis event streaming utilities
 │   ├── intelligence/
@@ -42,7 +60,10 @@ ally/
 │   ├── scoring-service/         # Node/Express API with Redis event streaming
 │   ├── sentiment-service/       # FastAPI service (sentiment + NER)
 │   └── shade-agent/            # TypeScript API for cross-chain transactions
-├── infra/                       # docker-compose, env example and prompts file
+├── infra/                       # Configuration files and infrastructure setup
+│   ├── supported.json           # Centralized blockchain/platform configuration
+│   ├── docker-compose.yml       # Local development environment
+│   └── example.env              # Environment variables template
 └── tools/                       # CLI tools for monitoring and testing
 ```
 
