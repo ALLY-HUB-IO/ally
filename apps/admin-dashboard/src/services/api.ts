@@ -384,6 +384,22 @@ class ApiService {
     }
     throw new Error(response.data.error || 'Failed to get critical messages');
   }
+
+  // Configuration
+  async getSupportedConfig(): Promise<{
+    blockchains: Array<{ value: string; label: string }>;
+    platforms: Array<{ value: string; label: string }>;
+  }> {
+    const response: AxiosResponse<ApiResponse<{
+      blockchains: Array<{ value: string; label: string }>;
+      platforms: Array<{ value: string; label: string }>;
+    }>> = await this.api.get('/campaigns/supported');
+    
+    if (response.data.ok && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.error || 'Failed to get supported configuration');
+  }
 }
 
 export const apiService = new ApiService();

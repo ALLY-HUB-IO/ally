@@ -41,30 +41,15 @@ import {
 import { Campaign, CampaignForm } from '../types';
 import { apiService } from '../services/api';
 
-// Supported chains and platforms (matching backend)
-const SUPPORTED_CHAINS = [
-  { value: 'ethereum', label: 'Ethereum' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'bsc', label: 'BSC' },
-  { value: 'arbitrum', label: 'Arbitrum' },
-  { value: 'optimism', label: 'Optimism' },
-  { value: 'base', label: 'Base' },
-  { value: 'near', label: 'NEAR' },
-  { value: 'theta', label: 'Theta' },
-  { value: 'theta-testnet', label: 'Theta Testnet' },
-];
-
-const SUPPORTED_PLATFORMS = [
-  { value: 'discord', label: 'Discord' },
-  { value: 'twitter', label: 'Twitter' },
-  { value: 'telegram', label: 'Telegram' },
-  { value: 'reddit', label: 'Reddit' },
-];
+// Supported chains and platforms will be loaded from the backend
+let SUPPORTED_CHAINS: Array<{ value: string; label: string }> = [];
+let SUPPORTED_PLATFORMS: Array<{ value: string; label: string }> = [];
 
 export const CampaignsPage: React.FC = () => {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>('');
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(20);
   const [total, setTotal] = useState(0);
@@ -102,9 +87,28 @@ export const CampaignsPage: React.FC = () => {
     }
   }, [page, rowsPerPage]);
 
+  // Load supported configuration on component mount
   useEffect(() => {
-    fetchCampaigns();
-  }, [fetchCampaigns]);
+    const loadConfig = async () => {
+      try {
+        const config = await apiService.getSupportedConfig();
+        SUPPORTED_CHAINS = config.blockchains;
+        SUPPORTED_PLATFORMS = config.platforms;
+        setConfigLoaded(true);
+      } catch (error) {
+        console.error('Failed to load supported configuration:', error);
+        setError('Failed to load configuration. Please refresh the page.');
+      }
+    };
+
+    loadConfig();
+  }, []);
+
+  useEffect(() => {
+    if (configLoaded) {
+      fetchCampaigns();
+    }
+  }, [fetchCampaigns, configLoaded]);
 
   const handleChangePage = (event: unknown, newPage: number) => {
     setPage(newPage);
@@ -243,7 +247,7 @@ export const CampaignsPage: React.FC = () => {
     return parseFloat(amount).toLocaleString();
   };
 
-  if (loading && campaigns.length === 0) {
+  if ((loading && campaigns.length === 0) || !configLoaded) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
         <CircularProgress />
