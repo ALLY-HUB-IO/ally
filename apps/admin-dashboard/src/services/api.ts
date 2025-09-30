@@ -4,6 +4,7 @@ import {
   User, 
   Message, 
   Campaign, 
+  CampaignEpoch,
   Payout, 
   OverviewStats, 
   ActivityData,
@@ -11,7 +12,9 @@ import {
   ApiResponse,
   PaginatedResponse,
   LoginForm,
-  CampaignForm
+  CampaignForm,
+  CampaignFundingForm,
+  CampaignStatusForm
 } from '../types';
 
 class ApiService {
@@ -195,6 +198,8 @@ class ApiService {
     sortOrder?: 'asc' | 'desc';
     isActive?: boolean;
     isNative?: boolean;
+    isFunded?: boolean;
+    status?: string;
     chainId?: string;
     platforms?: string;
     search?: string;
@@ -261,6 +266,51 @@ class ApiService {
       return response.data.data;
     }
     throw new Error(response.data.error || 'Failed to deactivate campaign');
+  }
+
+  async fundCampaign(id: string, fundingData: CampaignFundingForm): Promise<Campaign> {
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
+      await this.api.post(`/campaigns/${id}/fund`, fundingData);
+    
+    if (response.data.ok && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.error || 'Failed to fund campaign');
+  }
+
+  async updateCampaignStatus(id: string, statusData: CampaignStatusForm): Promise<Campaign> {
+    const response: AxiosResponse<ApiResponse<Campaign>> = 
+      await this.api.post(`/campaigns/${id}/status`, statusData);
+    
+    if (response.data.ok && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.error || 'Failed to update campaign status');
+  }
+
+  // Epochs
+  async getCampaignEpochs(campaignId: string, params?: {
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+    state?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<PaginatedResponse<CampaignEpoch>> {
+    const response: AxiosResponse<PaginatedResponse<CampaignEpoch>> = 
+      await this.api.get(`/epochs/campaigns/${campaignId}/epochs`, { params });
+    return response.data;
+  }
+
+  async getEpoch(epochId: string): Promise<CampaignEpoch> {
+    const response: AxiosResponse<ApiResponse<CampaignEpoch>> = 
+      await this.api.get(`/epochs/${epochId}`);
+    
+    if (response.data.ok && response.data.data) {
+      return response.data.data;
+    }
+    throw new Error(response.data.error || 'Failed to get epoch');
   }
 
   // Payouts

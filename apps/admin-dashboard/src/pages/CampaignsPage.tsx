@@ -37,8 +37,12 @@ import {
   PlayArrow as PlayIcon,
   Pause as PauseIcon,
   Info as InfoIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  AccountBalance as FundIcon,
+  Settings as StatusIcon,
 } from '@mui/icons-material';
-import { Campaign, CampaignForm } from '../types';
+import { Campaign, CampaignForm, CampaignFundingForm, CampaignStatusForm, CampaignEpoch } from '../types';
 import { apiService } from '../services/api';
 
 // Supported chains and platforms will be loaded from the backend
@@ -55,6 +59,10 @@ export const CampaignsPage: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
+  const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
+  const [fundingDialogOpen, setFundingDialogOpen] = useState(false);
+  const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [formData, setFormData] = useState<CampaignForm>({
     name: '',
     description: '',
@@ -65,10 +73,20 @@ export const CampaignsPage: React.FC = () => {
     totalRewardPool: '',
     startDate: '',
     endDate: '',
-    minScore: undefined,
     maxRewardsPerUser: '',
-    timeframe: 30,
+    payoutIntervalSeconds: 604800, // 1 week in seconds
+    epochRewardCap: '',
+    claimWindowSeconds: 604800, // 7 days in seconds
+    recycleUnclaimed: true,
     platforms: [],
+  });
+  const [fundingData, setFundingData] = useState<CampaignFundingForm>({
+    vaultAddress: '',
+    fundingTxHash: '',
+    startDate: '',
+  });
+  const [statusData, setStatusData] = useState<CampaignStatusForm>({
+    status: 'DRAFT',
   });
 
   const fetchCampaigns = useCallback(async () => {
@@ -130,11 +148,13 @@ export const CampaignsPage: React.FC = () => {
         chainId: campaign.chainId,
         tokenAddress: campaign.tokenAddress || '',
         totalRewardPool: campaign.totalRewardPool,
-        startDate: campaign.startDate.split('T')[0],
-        endDate: campaign.endDate.split('T')[0],
-        minScore: campaign.minScore,
+        startDate: campaign.startDate ? campaign.startDate.split('T')[0] : '',
+        endDate: campaign.endDate ? campaign.endDate.split('T')[0] : '',
         maxRewardsPerUser: campaign.maxRewardsPerUser || '',
-        timeframe: campaign.timeframe,
+        payoutIntervalSeconds: campaign.payoutIntervalSeconds,
+        epochRewardCap: campaign.epochRewardCap,
+        claimWindowSeconds: campaign.claimWindowSeconds,
+        recycleUnclaimed: campaign.recycleUnclaimed,
         platforms: campaign.platforms,
       });
     } else {
@@ -149,9 +169,11 @@ export const CampaignsPage: React.FC = () => {
         totalRewardPool: '',
         startDate: '',
         endDate: '',
-        minScore: undefined,
         maxRewardsPerUser: '',
-        timeframe: 30,
+        payoutIntervalSeconds: 604800, // 1 week in seconds
+        epochRewardCap: '',
+        claimWindowSeconds: 604800, // 7 days in seconds
+        recycleUnclaimed: true,
         platforms: [],
       });
     }
@@ -239,12 +261,101 @@ export const CampaignsPage: React.FC = () => {
     }
   };
 
+  const handleToggleExpanded = (campaignId: string) => {
+    const newExpanded = new Set(expandedCampaigns);
+    if (newExpanded.has(campaignId)) {
+      newExpanded.delete(campaignId);
+    } else {
+      newExpanded.add(campaignId);
+    }
+    setExpandedCampaigns(newExpanded);
+  };
+
+  const handleOpenFundingDialog = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setFundingData({
+      vaultAddress: '',
+      fundingTxHash: '',
+      startDate: '',
+    });
+    setFundingDialogOpen(true);
+  };
+
+  const handleCloseFundingDialog = () => {
+    setFundingDialogOpen(false);
+    setSelectedCampaign(null);
+  };
+
+  const handleOpenStatusDialog = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
+    setStatusData({ status: campaign.status });
+    setStatusDialogOpen(true);
+  };
+
+  const handleCloseStatusDialog = () => {
+    setStatusDialogOpen(false);
+    setSelectedCampaign(null);
+  };
+
+  const handleFundCampaign = async () => {
+    if (!selectedCampaign) return;
+    try {
+      await apiService.fundCampaign(selectedCampaign.id, fundingData);
+      handleCloseFundingDialog();
+      fetchCampaigns();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fund campaign');
+    }
+  };
+
+  const handleUpdateCampaignStatus = async () => {
+    if (!selectedCampaign) return;
+    try {
+      await apiService.updateCampaignStatus(selectedCampaign.id, statusData);
+      handleCloseStatusDialog();
+      fetchCampaigns();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update campaign status');
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
 
   const formatAmount = (amount: string) => {
     return parseFloat(amount).toLocaleString();
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'DRAFT': return 'default';
+      case 'ACTIVE': return 'success';
+      case 'PAUSED': return 'warning';
+      case 'COMPLETED': return 'info';
+      case 'CANCELED': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const getEpochStateColor = (state: string) => {
+    switch (state) {
+      case 'OPEN': return 'success';
+      case 'CLAIMING': return 'warning';
+      case 'RECYCLED': return 'info';
+      case 'EXPIRED': return 'error';
+      case 'CLOSED': return 'default';
+      default: return 'default';
+    }
+  };
+
+  const formatDuration = (seconds: number) => {
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    if (days > 0) {
+      return `${days}d ${hours}h`;
+    }
+    return `${hours}h`;
   };
 
   if ((loading && campaigns.length === 0) || !configLoaded) {
@@ -286,6 +397,8 @@ export const CampaignsPage: React.FC = () => {
               <TableCell>Platforms</TableCell>
               <TableCell>Reward Pool</TableCell>
               <TableCell>Status</TableCell>
+              <TableCell>Funding</TableCell>
+              <TableCell>Epochs</TableCell>
               <TableCell>Start Date</TableCell>
               <TableCell>End Date</TableCell>
               <TableCell>Payouts</TableCell>
@@ -294,17 +407,28 @@ export const CampaignsPage: React.FC = () => {
           </TableHead>
           <TableBody>
             {campaigns.map((campaign) => (
-              <TableRow key={campaign.id} hover>
-                <TableCell>
-                  <Typography variant="body2" fontWeight="bold">
-                    {campaign.name}
-                  </Typography>
-                  {campaign.description && (
-                    <Typography variant="caption" color="textSecondary">
-                      {campaign.description}
-                    </Typography>
-                  )}
-                </TableCell>
+              <React.Fragment key={campaign.id}>
+                <TableRow hover>
+                  <TableCell>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleToggleExpanded(campaign.id)}
+                      >
+                        {expandedCampaigns.has(campaign.id) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                      </IconButton>
+                      <Box>
+                        <Typography variant="body2" fontWeight="bold">
+                          {campaign.name}
+                        </Typography>
+                        {campaign.description && (
+                          <Typography variant="caption" color="textSecondary">
+                            {campaign.description}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
+                  </TableCell>
                 <TableCell>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Chip
@@ -350,19 +474,31 @@ export const CampaignsPage: React.FC = () => {
                 </TableCell>
                 <TableCell>
                   <Chip
-                    label={campaign.isActive ? 'Active' : 'Inactive'}
-                    color={campaign.isActive ? 'success' : 'default'}
+                    label={campaign.status}
+                    color={getStatusColor(campaign.status)}
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    label={campaign.isFunded ? 'Funded' : 'Unfunded'}
+                    color={campaign.isFunded ? 'success' : 'warning'}
                     size="small"
                   />
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {formatDate(campaign.startDate)}
+                    {campaign.epochs?.length || 0} epochs
                   </Typography>
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2">
-                    {formatDate(campaign.endDate)}
+                    {campaign.startDate ? formatDate(campaign.startDate) : 'Not set'}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">
+                    {campaign.endDate ? formatDate(campaign.endDate) : 'Not set'}
                   </Typography>
                 </TableCell>
                 <TableCell>
@@ -371,30 +507,129 @@ export const CampaignsPage: React.FC = () => {
                   </Typography>
                 </TableCell>
                 <TableCell>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleToggleActive(campaign)}
-                    title={campaign.isActive ? 'Deactivate' : 'Activate'}
-                  >
-                    {campaign.isActive ? <PauseIcon /> : <PlayIcon />}
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpenDialog(campaign)}
-                    title="Edit"
-                  >
-                    <EditIcon />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleDelete(campaign)}
-                    title="Delete"
-                    color="error"
-                  >
-                    <DeleteIcon />
-                  </IconButton>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    {!campaign.isFunded && (
+                      <IconButton
+                        size="small"
+                        onClick={() => handleOpenFundingDialog(campaign)}
+                        title="Fund Campaign"
+                        color="primary"
+                      >
+                        <FundIcon />
+                      </IconButton>
+                    )}
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenStatusDialog(campaign)}
+                      title="Update Status"
+                    >
+                      <StatusIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleToggleActive(campaign)}
+                      title={campaign.isActive ? 'Deactivate' : 'Activate'}
+                    >
+                      {campaign.isActive ? <PauseIcon /> : <PlayIcon />}
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenDialog(campaign)}
+                      title="Edit"
+                    >
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleDelete(campaign)}
+                      title="Delete"
+                      color="error"
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </Box>
                 </TableCell>
               </TableRow>
+              {expandedCampaigns.has(campaign.id) && campaign.epochs && (
+                <TableRow>
+                  <TableCell colSpan={12} sx={{ py: 2, backgroundColor: 'grey.50' }}>
+                    <Box sx={{ ml: 4 }}>
+                      <Typography variant="h6" gutterBottom>
+                        Campaign Epochs
+                      </Typography>
+                      {campaign.epochs.length > 0 ? (
+                        <Table size="small">
+                          <TableHead>
+                            <TableRow>
+                              <TableCell>Epoch #</TableCell>
+                              <TableCell>State</TableCell>
+                              <TableCell>Start Date</TableCell>
+                              <TableCell>End Date</TableCell>
+                              <TableCell>Claim Window</TableCell>
+                              <TableCell>Allocated</TableCell>
+                              <TableCell>Claimed</TableCell>
+                              <TableCell>Remaining</TableCell>
+                            </TableRow>
+                          </TableHead>
+                          <TableBody>
+                            {campaign.epochs.map((epoch) => (
+                              <TableRow key={epoch.id}>
+                                <TableCell>
+                                  <Typography variant="body2" fontWeight="bold">
+                                    #{epoch.epochNumber}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Chip
+                                    label={epoch.state}
+                                    color={getEpochStateColor(epoch.state)}
+                                    size="small"
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatDate(epoch.epochStart)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatDate(epoch.epochEnd)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatDate(epoch.claimWindowEnds)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatAmount(epoch.allocated)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatAmount(epoch.claimed)}
+                                  </Typography>
+                                </TableCell>
+                                <TableCell>
+                                  <Typography variant="body2">
+                                    {formatAmount((parseFloat(epoch.allocated) - parseFloat(epoch.claimed)).toString())}
+                                  </Typography>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        <Typography variant="body2" color="textSecondary">
+                          No epochs created yet. Epochs will be automatically created when the campaign is funded and active.
+                        </Typography>
+                      )}
+                    </Box>
+                  </TableCell>
+                </TableRow>
+              )}
+            </React.Fragment>
             ))}
           </TableBody>
         </Table>
@@ -540,54 +775,153 @@ export const CampaignsPage: React.FC = () => {
               />
             </Box>
 
-            {/* Timeframe */}
-            <TextField
-              label="Timeframe (days)"
-              value={formData.timeframe}
-              onChange={handleFormChange('timeframe')}
-              type="number"
-              required
-              inputProps={{ min: 1 }}
-              helperText="Campaign duration in days"
-            />
-
-            {/* Date Range */}
+            {/* Epoch Configuration */}
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
-                label="Start Date"
-                type="date"
-                value={formData.startDate}
-                onChange={handleFormChange('startDate')}
-                InputLabelProps={{ shrink: true }}
+                label="Payout Interval (seconds)"
+                value={formData.payoutIntervalSeconds}
+                onChange={handleFormChange('payoutIntervalSeconds')}
+                type="number"
                 required
+                inputProps={{ min: 1 }}
+                helperText={`${formatDuration(formData.payoutIntervalSeconds)} between epochs`}
                 fullWidth
               />
               <TextField
-                label="End Date"
-                type="date"
-                value={formData.endDate}
-                onChange={handleFormChange('endDate')}
-                InputLabelProps={{ shrink: true }}
+                label="Claim Window (seconds)"
+                value={formData.claimWindowSeconds}
+                onChange={handleFormChange('claimWindowSeconds')}
+                type="number"
                 required
+                inputProps={{ min: 1 }}
+                helperText={`${formatDuration(formData.claimWindowSeconds)} to claim rewards`}
                 fullWidth
               />
             </Box>
 
-            {/* Minimum Score */}
             <TextField
-              label="Minimum Score (Optional)"
-              value={formData.minScore || ''}
-              onChange={handleFormChange('minScore')}
+              label="Epoch Reward Cap"
+              value={formData.epochRewardCap}
+              onChange={handleFormChange('epochRewardCap')}
               type="number"
-              inputProps={{ min: 0, max: 1, step: 0.1 }}
-              helperText="Minimum user score required to participate (0.0 - 1.0)"
+              required
+              fullWidth
+              helperText="Maximum rewards distributed per epoch"
             />
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.recycleUnclaimed}
+                  onChange={handleCheckboxChange('recycleUnclaimed')}
+                />
+              }
+              label={
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography>Recycle Unclaimed Rewards</Typography>
+                  <Tooltip title="Automatically move unclaimed rewards back to the campaign pool">
+                    <InfoIcon fontSize="small" color="action" />
+                  </Tooltip>
+                </Box>
+              }
+            />
+
+            {/* Date Range - Optional */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Start Date (Optional)"
+                type="date"
+                value={formData.startDate}
+                onChange={handleFormChange('startDate')}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                helperText="Leave empty to set after funding"
+              />
+              <TextField
+                label="End Date (Optional)"
+                type="date"
+                value={formData.endDate}
+                onChange={handleFormChange('endDate')}
+                InputLabelProps={{ shrink: true }}
+                fullWidth
+                helperText="Leave empty to set after funding"
+              />
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog}>Cancel</Button>
           <Button onClick={handleSubmit} variant="contained">
             {editingCampaign ? 'Update' : 'Create'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Funding Dialog */}
+      <Dialog open={fundingDialogOpen} onClose={handleCloseFundingDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Fund Campaign</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <TextField
+              label="Vault Address"
+              value={fundingData.vaultAddress}
+              onChange={(e) => setFundingData(prev => ({ ...prev, vaultAddress: e.target.value }))}
+              fullWidth
+              required
+              helperText="Address of the vault holding campaign funds"
+            />
+            <TextField
+              label="Funding Transaction Hash"
+              value={fundingData.fundingTxHash}
+              onChange={(e) => setFundingData(prev => ({ ...prev, fundingTxHash: e.target.value }))}
+              fullWidth
+              required
+              helperText="Transaction hash of the funding transaction"
+            />
+            <TextField
+              label="Start Date (Optional)"
+              type="date"
+              value={fundingData.startDate}
+              onChange={(e) => setFundingData(prev => ({ ...prev, startDate: e.target.value }))}
+              InputLabelProps={{ shrink: true }}
+              fullWidth
+              helperText="Leave empty to start immediately"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseFundingDialog}>Cancel</Button>
+          <Button onClick={handleFundCampaign} variant="contained">
+            Fund Campaign
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Status Dialog */}
+      <Dialog open={statusDialogOpen} onClose={handleCloseStatusDialog} maxWidth="sm" fullWidth>
+        <DialogTitle>Update Campaign Status</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <FormControl fullWidth>
+              <InputLabel>Status</InputLabel>
+              <Select
+                value={statusData.status}
+                onChange={(e) => setStatusData(prev => ({ ...prev, status: e.target.value as any }))}
+                label="Status"
+              >
+                <MenuItem value="DRAFT">Draft</MenuItem>
+                <MenuItem value="ACTIVE">Active</MenuItem>
+                <MenuItem value="PAUSED">Paused</MenuItem>
+                <MenuItem value="COMPLETED">Completed</MenuItem>
+                <MenuItem value="CANCELED">Canceled</MenuItem>
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseStatusDialog}>Cancel</Button>
+          <Button onClick={handleUpdateCampaignStatus} variant="contained">
+            Update Status
           </Button>
         </DialogActions>
       </Dialog>

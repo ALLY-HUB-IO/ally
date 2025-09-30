@@ -96,16 +96,24 @@ export interface Campaign {
   chainId: string;
   tokenAddress?: string;
   totalRewardPool: string;
-  startDate: string;
-  endDate: string;
+  startDate?: string; // Now optional - set after funding
+  endDate?: string; // Now optional - set after funding
   isActive: boolean;
-  minScore?: number;
   maxRewardsPerUser?: string;
-  timeframe: number;
+  payoutIntervalSeconds: number; // Replaces timeframe
+  epochRewardCap: string;
+  claimWindowSeconds: number;
+  recycleUnclaimed: boolean;
   platforms: string[];
   createdBy: Admin;
   createdAt: string;
   updatedAt: string;
+  // New epoch-based fields
+  isFunded: boolean;
+  status: CampaignStatus;
+  vaultAddress?: string;
+  fundingTxHash?: string;
+  epochs?: CampaignEpoch[];
   stats: {
     totalPayouts: number;
     completedPayouts: number;
@@ -113,6 +121,31 @@ export interface Campaign {
     remainingAmount: string;
   };
 }
+
+export type CampaignStatus = 'DRAFT' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELED';
+
+export interface CampaignEpoch {
+  id: string;
+  campaignId: string;
+  epochNumber: number;
+  epochStart: string;
+  epochEnd: string;
+  claimWindowEnds: string;
+  allocated: string;
+  claimed: string;
+  recycledAt?: string;
+  state: EpochState;
+  createdAt: string;
+  updatedAt: string;
+  stats?: {
+    totalPayouts: number;
+    completedPayouts: number;
+    totalPayoutAmount: string;
+    remainingAmount: string;
+  };
+}
+
+export type EpochState = 'OPEN' | 'CLAIMING' | 'RECYCLED' | 'EXPIRED' | 'CLOSED';
 
 // Payout types
 export interface Payout {
@@ -243,10 +276,22 @@ export interface CampaignForm {
   chainId: string;
   tokenAddress?: string;
   totalRewardPool: string;
-  startDate: string;
-  endDate: string;
-  minScore?: number;
+  startDate?: string; // Now optional - set after funding
+  endDate?: string; // Now optional - set after funding
   maxRewardsPerUser?: string;
-  timeframe: number;
+  payoutIntervalSeconds: number; // Replaces timeframe
+  epochRewardCap: string;
+  claimWindowSeconds: number;
+  recycleUnclaimed: boolean;
   platforms: string[];
+}
+
+export interface CampaignFundingForm {
+  vaultAddress: string;
+  fundingTxHash: string;
+  startDate?: string;
+}
+
+export interface CampaignStatusForm {
+  status: CampaignStatus;
 }
