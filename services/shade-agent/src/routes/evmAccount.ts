@@ -10,7 +10,8 @@ app.get("/", async (c) => {
   const chain = c.req.query("chain") || "theta-365";
   
   // Fetch the environment variable inside the route
-  const contractId = process.env.NEXT_PUBLIC_contractId;
+  // use process.env.NEXT_PUBLIC_contractId_LOCAL if not exist use process.env.NEXT_PUBLIC_contractId
+  const contractId = process.env.NEXT_PUBLIC_contractId_LOCAL || process.env.NEXT_PUBLIC_contractId;
   if (!contractId) {
     return c.json({ error: "Contract ID not configured" }, 500);
   }
@@ -43,7 +44,8 @@ app.get("/:chain", async (c) => {
   const chain = c.req.param("chain");
   
   // Fetch the environment variable inside the route
-  const contractId = process.env.NEXT_PUBLIC_contractId;
+  // use process.env.NEXT_PUBLIC_contractId_LOCAL if not exist use process.env.NEXT_PUBLIC_contractId
+  const contractId = process.env.NEXT_PUBLIC_contractId_LOCAL || process.env.NEXT_PUBLIC_contractId;
   if (!contractId) {
     return c.json({ error: "Contract ID not configured" }, 500);
   }
