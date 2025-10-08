@@ -12,6 +12,7 @@ dotenv.config({ path: envPath });
 import evmAccount from "./routes/evmAccount";
 import agentAccount from "./routes/agentAccount";
 import transaction from "./routes/transaction";
+import campaignWallet from "./routes/campaignWallet";
 
 
 const app = new Hono();
@@ -29,6 +30,9 @@ app.get("/", (c) => c.json({ message: "Ally Shade Agent API", status: "running" 
 app.route("/api/evm-account", evmAccount);
 app.route("/api/agent-account", agentAccount);
 app.route("/api/transaction", transaction);
+
+// Campaign wallet routes with authentication
+app.route("/api/campaign-wallet", campaignWallet);
 
 
 // Start the server
