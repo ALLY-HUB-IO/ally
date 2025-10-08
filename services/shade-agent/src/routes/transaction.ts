@@ -45,7 +45,8 @@ app.post("/send", async (c) => {
       }, 400);
     }
 
-    const contractId = process.env.NEXT_PUBLIC_contractId;
+    // use process.env.NEXT_PUBLIC_contractId_LOCAL if not exist use process.env.NEXT_PUBLIC_contractId
+    const contractId = process.env.NEXT_PUBLIC_contractId_LOCAL || process.env.NEXT_PUBLIC_contractId;
     if (!contractId) {
       return c.json({ error: "Contract ID not configured" }, 500);
     }
@@ -189,7 +190,8 @@ app.post("/estimate-gas", async (c) => {
       }, 400);
     }
 
-    const contractId = process.env.NEXT_PUBLIC_contractId;
+    // use process.env.NEXT_PUBLIC_contractId_LOCAL if not exist use process.env.NEXT_PUBLIC_contractId
+    const contractId = process.env.NEXT_PUBLIC_contractId_LOCAL || process.env.NEXT_PUBLIC_contractId;
     if (!contractId) {
       return c.json({ error: "Contract ID not configured" }, 500);
     }
