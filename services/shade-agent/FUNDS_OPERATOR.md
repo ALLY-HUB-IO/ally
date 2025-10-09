@@ -39,6 +39,12 @@ The Shade Agent has been enhanced to function as a funds operator for the Ally p
 - Ethereum (mainnet/testnet)
 - Extensible to other EVM-compatible chains
 
+### 5. **ERC20 Token Support**
+- Native token support (TFUEL, ETH, etc.)
+- ERC20 token support for all operations
+- Token balance checking and withdrawal
+- Multi-token wallet management
+
 ## 🚀 API Endpoints
 
 ### Authentication
@@ -56,7 +62,8 @@ Generate a new wallet for a campaign on a specific chain.
 ```json
 {
   "campaignId": "campaign-123",
-  "chain": "theta-365"
+  "chain": "theta-365",
+  "tokenAddresses": ["0x...", "0x..."] // Optional: ERC20 token addresses to check
 }
 ```
 
@@ -69,15 +76,27 @@ Generate a new wallet for a campaign on a specific chain.
     "chain": "theta-365",
     "campaignId": "campaign-123",
     "balance": "0",
-    "isFunded": false
+    "isFunded": false,
+    "tokenBalances": [
+      {
+        "tokenAddress": "0x...",
+        "balance": "0",
+        "formattedBalance": "0.0",
+        "symbol": "USDC",
+        "decimals": 6
+      }
+    ]
   }
 }
 ```
 
 ### 2. Get Campaign Wallet
-**GET** `/api/campaign-wallet/:campaignId/:chain`
+**GET** `/api/campaign-wallet/:campaignId/:chain?tokenAddresses=0x...,0x...`
 
 Get existing wallet information for a campaign.
+
+**Query Parameters:**
+- `tokenAddresses` (optional): Comma-separated list of ERC20 token addresses to check
 
 **Response:**
 ```json
@@ -88,15 +107,27 @@ Get existing wallet information for a campaign.
     "chain": "theta-365",
     "campaignId": "campaign-123",
     "balance": "1000000000000000000",
-    "isFunded": true
+    "isFunded": true,
+    "tokenBalances": [
+      {
+        "tokenAddress": "0x...",
+        "balance": "1000000",
+        "formattedBalance": "1.0",
+        "symbol": "USDC",
+        "decimals": 6
+      }
+    ]
   }
 }
 ```
 
 ### 3. Check Funding Status
-**GET** `/api/campaign-wallet/:campaignId/:chain/funding-status`
+**GET** `/api/campaign-wallet/:campaignId/:chain/funding-status?tokenAddresses=0x...,0x...`
 
 Check if a campaign wallet is funded.
+
+**Query Parameters:**
+- `tokenAddresses` (optional): Comma-separated list of ERC20 token addresses to check
 
 **Response:**
 ```json
@@ -105,7 +136,16 @@ Check if a campaign wallet is funded.
   "data": {
     "isFunded": true,
     "balance": "1000000000000000000",
-    "walletAddress": "0x..."
+    "walletAddress": "0x...",
+    "tokenBalances": [
+      {
+        "tokenAddress": "0x...",
+        "balance": "1000000",
+        "formattedBalance": "1.0",
+        "symbol": "USDC",
+        "decimals": 6
+      }
+    ]
   }
 }
 ```
@@ -113,9 +153,9 @@ Check if a campaign wallet is funded.
 ### 4. Withdraw Funds
 **POST** `/api/campaign-wallet/withdraw`
 
-Withdraw funds from a campaign wallet (only for canceled campaigns).
+Withdraw funds from a campaign wallet (only for canceled campaigns). Supports both native tokens and ERC20 tokens.
 
-**Request Body:**
+**Request Body (Native Token):**
 ```json
 {
   "campaignId": "campaign-123",
@@ -125,7 +165,18 @@ Withdraw funds from a campaign wallet (only for canceled campaigns).
 }
 ```
 
-**Response:**
+**Request Body (ERC20 Token):**
+```json
+{
+  "campaignId": "campaign-123",
+  "chain": "theta-365",
+  "recipientAddress": "0x1234567890123456789012345678901234567890",
+  "amount": "100.5",
+  "tokenAddress": "0x...USDC_CONTRACT_ADDRESS..."
+}
+```
+
+**Response (Native Token):**
 ```json
 {
   "success": true,
@@ -137,6 +188,67 @@ Withdraw funds from a campaign wallet (only for canceled campaigns).
     "recipientAddress": "0x1234567890123456789012345678901234567890",
     "campaignId": "campaign-123",
     "chain": "theta-365"
+  }
+}
+```
+
+**Response (ERC20 Token):**
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "txHash": "0x...",
+    "message": "USDC withdrawal completed successfully",
+    "amount": "100.5",
+    "recipientAddress": "0x1234567890123456789012345678901234567890",
+    "campaignId": "campaign-123",
+    "chain": "theta-365",
+    "tokenAddress": "0x...USDC_CONTRACT_ADDRESS...",
+    "tokenSymbol": "USDC"
+  }
+}
+```
+
+### 5. Get ERC20 Token Information
+**GET** `/api/campaign-wallet/token-info/:tokenAddress/:chain`
+
+Get information about an ERC20 token.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "address": "0x...",
+    "symbol": "USDC",
+    "name": "USD Coin",
+    "decimals": 6,
+    "totalSupply": "1000000000000000"
+  }
+}
+```
+
+### 6. Get ERC20 Token Balance
+**GET** `/api/campaign-wallet/:campaignId/:chain/token-balance/:tokenAddress`
+
+Get the balance of a specific ERC20 token for a campaign wallet.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "campaignId": "campaign-123",
+    "chain": "theta-365",
+    "walletAddress": "0x...",
+    "tokenBalance": {
+      "tokenAddress": "0x...",
+      "balance": "1000000",
+      "formattedBalance": "1.0",
+      "symbol": "USDC",
+      "decimals": 6
+    }
   }
 }
 ```
@@ -222,7 +334,7 @@ const status = await response.json();
 console.log('Is funded:', status.data.isFunded);
 ```
 
-### 3. Withdraw Funds
+### 3. Withdraw Native Token
 
 ```typescript
 const response = await fetch('http://localhost:8090/api/campaign-wallet/withdraw', {
@@ -241,6 +353,54 @@ const response = await fetch('http://localhost:8090/api/campaign-wallet/withdraw
 
 const result = await response.json();
 console.log('Withdrawal tx:', result.data.txHash);
+```
+
+### 4. Withdraw ERC20 Token
+
+```typescript
+const response = await fetch('http://localhost:8090/api/campaign-wallet/withdraw', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${process.env.ADMIN_SHADE_AGENT_TOKEN}`
+  },
+  body: JSON.stringify({
+    campaignId: 'campaign-123',
+    chain: 'theta-365',
+    recipientAddress: '0x1234567890123456789012345678901234567890',
+    amount: '100.5', // 100.5 USDC
+    tokenAddress: '0x...USDC_CONTRACT_ADDRESS...'
+  })
+});
+
+const result = await response.json();
+console.log('ERC20 withdrawal tx:', result.data.txHash);
+```
+
+### 5. Get Token Information
+
+```typescript
+const response = await fetch('http://localhost:8090/api/campaign-wallet/token-info/0x...USDC_ADDRESS.../theta-365', {
+  headers: {
+    'Authorization': `Bearer ${process.env.ADMIN_SHADE_AGENT_TOKEN}`
+  }
+});
+
+const tokenInfo = await response.json();
+console.log('Token info:', tokenInfo.data);
+```
+
+### 6. Check Token Balance
+
+```typescript
+const response = await fetch('http://localhost:8090/api/campaign-wallet/campaign-123/theta-365/token-balance/0x...USDC_ADDRESS...', {
+  headers: {
+    'Authorization': `Bearer ${process.env.ADMIN_SHADE_AGENT_TOKEN}`
+  }
+});
+
+const balance = await response.json();
+console.log('Token balance:', balance.data.tokenBalance.formattedBalance);
 ```
 
 ## 🔗 Chain Identifiers
@@ -286,15 +446,17 @@ Supported chain identifiers:
 4. Campaign is ready for funding
 
 ### Campaign Funding
-1. Users send funds to the campaign wallet address
+1. Users send funds (native tokens or ERC20 tokens) to the campaign wallet address
 2. Admin service can check funding status via `/api/campaign-wallet/:campaignId/:chain/funding-status`
-3. Campaign becomes active when funded
+3. Admin service can check specific token balances via `/api/campaign-wallet/:campaignId/:chain/token-balance/:tokenAddress`
+4. Campaign becomes active when funded (native token or any supported ERC20 token)
 
 ### Campaign Cancellation & Withdrawal
 1. Campaign is marked as canceled in admin service
-2. Admin service calls `/api/campaign-wallet/withdraw`
-3. Funds are returned to the original sender
+2. Admin service calls `/api/campaign-wallet/withdraw` for native tokens or ERC20 tokens
+3. Funds are returned to the original sender (supports both native and ERC20 tokens)
 4. Transaction hash is returned for tracking
+5. Admin service can withdraw specific ERC20 tokens by providing `tokenAddress` in the request
 
 ## 🛠️ Development
 
@@ -319,6 +481,30 @@ curl -X POST \
   -H "Authorization: Bearer your-token" \
   -d '{"campaignId":"test-123","chain":"theta-365"}' \
   http://localhost:8090/api/campaign-wallet/generate
+```
+
+4. **Generate a wallet with ERC20 token balance checking:**
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
+  -d '{"campaignId":"test-123","chain":"theta-365","tokenAddresses":["0x...USDC_ADDRESS...","0x...USDT_ADDRESS..."]}' \
+  http://localhost:8090/api/campaign-wallet/generate
+```
+
+5. **Get token information:**
+```bash
+curl -H "Authorization: Bearer your-token" \
+  http://localhost:8090/api/campaign-wallet/token-info/0x...USDC_ADDRESS.../theta-365
+```
+
+6. **Withdraw ERC20 token:**
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-token" \
+  -d '{"campaignId":"test-123","chain":"theta-365","recipientAddress":"0x...","amount":"100.5","tokenAddress":"0x...USDC_ADDRESS..."}' \
+  http://localhost:8090/api/campaign-wallet/withdraw
 ```
 
 ### Docker Deployment
