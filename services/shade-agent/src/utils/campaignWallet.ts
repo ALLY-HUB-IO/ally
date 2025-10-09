@@ -1,4 +1,5 @@
 import { Evm } from "./evm";
+import { ERC20Manager, TokenBalance, TokenInfo } from "./erc20";
 import { createHash } from "crypto";
 
 export interface CampaignWalletInfo {
@@ -7,6 +8,7 @@ export interface CampaignWalletInfo {
   campaignId: string;
   balance: string;
   isFunded: boolean;
+  tokenBalances?: TokenBalance[];
 }
 
 export interface WithdrawalRequest {
@@ -14,6 +16,7 @@ export interface WithdrawalRequest {
   chain: string;
   recipientAddress: string;
   amount?: string; // If not provided, withdraw all
+  tokenAddress?: string; // If not provided, withdraw native token
 }
 
 export interface WithdrawalResponse {
@@ -24,6 +27,8 @@ export interface WithdrawalResponse {
   recipientAddress: string;
   campaignId: string;
   chain: string;
+  tokenAddress?: string;
+  tokenSymbol?: string;
 }
 
 /**
@@ -37,11 +42,13 @@ export class CampaignWalletManager {
    * Generate a unique wallet address for a campaign
    * @param campaignId - Unique campaign identifier
    * @param chain - Chain identifier (e.g., "theta-365", "ethereum-1")
+   * @param tokenAddresses - Optional array of ERC20 token addresses to check balances for
    * @returns Campaign wallet information
    */
   static async generateCampaignWallet(
     campaignId: string, 
-    chain: string
+    chain: string,
+    tokenAddresses?: string[]
   ): Promise<CampaignWalletInfo> {
     try {
       // Create a deterministic path based on campaign ID and chain
@@ -63,12 +70,24 @@ export class CampaignWalletManager {
       const balance = await this.getWalletBalance(walletAddress, chain);
       const isFunded = BigInt(balance) > BigInt(0);
 
+      // Get token balances if token addresses provided
+      let tokenBalances: TokenBalance[] | undefined;
+      if (tokenAddresses && tokenAddresses.length > 0) {
+        try {
+          tokenBalances = await ERC20Manager.getMultipleTokenBalances(walletAddress, tokenAddresses, chain);
+        } catch (error) {
+          console.warn("Failed to get token balances:", error);
+          // Continue without token balances
+        }
+      }
+
       return {
         walletAddress,
         chain,
         campaignId,
         balance,
-        isFunded
+        isFunded,
+        tokenBalances
       };
     } catch (error) {
       console.error("Error generating campaign wallet:", error);
@@ -80,13 +99,15 @@ export class CampaignWalletManager {
    * Get wallet information for an existing campaign
    * @param campaignId - Campaign identifier
    * @param chain - Chain identifier
+   * @param tokenAddresses - Optional array of ERC20 token addresses to check balances for
    * @returns Campaign wallet information
    */
   static async getCampaignWallet(
     campaignId: string, 
-    chain: string
+    chain: string,
+    tokenAddresses?: string[]
   ): Promise<CampaignWalletInfo> {
-    return this.generateCampaignWallet(campaignId, chain);
+    return this.generateCampaignWallet(campaignId, chain, tokenAddresses);
   }
 
   /**
@@ -115,11 +136,17 @@ export class CampaignWalletManager {
    */
   static async withdrawFunds(withdrawalRequest: WithdrawalRequest): Promise<WithdrawalResponse> {
     try {
-      const { campaignId, chain, recipientAddress, amount } = withdrawalRequest;
+      const { campaignId, chain, recipientAddress, amount, tokenAddress } = withdrawalRequest;
 
       // Get campaign wallet info
       const walletInfo = await this.getCampaignWallet(campaignId, chain);
       
+      // Check if it's an ERC20 token withdrawal
+      if (tokenAddress) {
+        return await this.handleERC20Withdrawal(withdrawalRequest, walletInfo);
+      }
+
+      // Handle native token withdrawal
       if (!walletInfo.isFunded) {
         return {
           success: false,
@@ -185,6 +212,131 @@ export class CampaignWalletManager {
         recipientAddress: withdrawalRequest.recipientAddress,
         campaignId: withdrawalRequest.campaignId,
         chain: withdrawalRequest.chain
+      };
+    }
+  }
+
+  /**
+   * Handle ERC20 token withdrawal
+   * @param withdrawalRequest - Withdrawal details
+   * @param walletInfo - Campaign wallet information
+   * @returns Withdrawal response
+   */
+  private static async handleERC20Withdrawal(
+    withdrawalRequest: WithdrawalRequest,
+    walletInfo: CampaignWalletInfo
+  ): Promise<WithdrawalResponse> {
+    try {
+      const { campaignId, chain, recipientAddress, amount, tokenAddress } = withdrawalRequest;
+
+      if (!tokenAddress) {
+        return {
+          success: false,
+          message: "Token address is required for ERC20 withdrawal",
+          amount: "0",
+          recipientAddress,
+          campaignId,
+          chain
+        };
+      }
+
+      // Validate token address
+      if (!ERC20Manager.isValidTokenAddress(tokenAddress)) {
+        return {
+          success: false,
+          message: "Invalid token address format",
+          amount: "0",
+          recipientAddress,
+          campaignId,
+          chain
+        };
+      }
+
+      // Get token balance
+      const tokenBalance = await ERC20Manager.getTokenBalance(
+        walletInfo.walletAddress,
+        tokenAddress,
+        chain
+      );
+
+      // Check if wallet has token balance
+      if (BigInt(tokenBalance.balance) === BigInt(0)) {
+        return {
+          success: false,
+          message: `No ${tokenBalance.symbol} tokens in campaign wallet`,
+          amount: "0",
+          recipientAddress,
+          campaignId,
+          chain,
+          tokenAddress,
+          tokenSymbol: tokenBalance.symbol
+        };
+      }
+
+      // Determine withdrawal amount
+      const withdrawalAmount = amount || tokenBalance.formattedBalance;
+
+      // Validate withdrawal amount
+      if (parseFloat(withdrawalAmount) > parseFloat(tokenBalance.formattedBalance)) {
+        return {
+          success: false,
+          message: `Insufficient ${tokenBalance.symbol} balance for withdrawal`,
+          amount: "0",
+          recipientAddress,
+          campaignId,
+          chain,
+          tokenAddress,
+          tokenSymbol: tokenBalance.symbol
+        };
+      }
+
+      // Validate recipient address
+      if (!recipientAddress.startsWith('0x') || recipientAddress.length !== 42) {
+        return {
+          success: false,
+          message: "Invalid recipient address format",
+          amount: "0",
+          recipientAddress,
+          campaignId,
+          chain,
+          tokenAddress,
+          tokenSymbol: tokenBalance.symbol
+        };
+      }
+
+      // Execute ERC20 transfer
+      const walletPath = this.generateWalletPath(campaignId, chain);
+      const txHash = await ERC20Manager.executeERC20Transfer(
+        walletInfo.walletAddress,
+        recipientAddress,
+        withdrawalAmount,
+        tokenAddress,
+        chain,
+        walletPath
+      );
+
+      return {
+        success: true,
+        txHash,
+        message: `${tokenBalance.symbol} withdrawal completed successfully`,
+        amount: withdrawalAmount,
+        recipientAddress,
+        campaignId,
+        chain,
+        tokenAddress,
+        tokenSymbol: tokenBalance.symbol
+      };
+
+    } catch (error) {
+      console.error("Error handling ERC20 withdrawal:", error);
+      return {
+        success: false,
+        message: `ERC20 withdrawal failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        amount: "0",
+        recipientAddress: withdrawalRequest.recipientAddress,
+        campaignId: withdrawalRequest.campaignId,
+        chain: withdrawalRequest.chain,
+        tokenAddress: withdrawalRequest.tokenAddress
       };
     }
   }
